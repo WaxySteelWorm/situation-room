@@ -392,7 +392,7 @@ function CredentialModal({
   onSaved: () => void;
 }) {
   const [name, setName] = useState(credential?.name || '');
-  const [credentialType, setCredentialType] = useState(
+  const [credentialType, setCredentialType] = useState<string>(
     credential?.credential_type || 'password'
   );
   const [value, setValue] = useState(credential?.value || '');

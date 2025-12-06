@@ -43,6 +43,16 @@ export const authApi = {
 
   refresh: () =>
     request<{ message: string }>('/auth/refresh', { method: 'POST' }),
+
+  getConfig: () =>
+    request<{
+      sso_enabled: boolean;
+      allow_password_login: boolean;
+      providers: Array<{ name: string; id: string }>;
+    }>('/auth/config'),
+
+  getSsoAuthorizeUrl: (provider: string) =>
+    `/api/auth/sso/${provider}/authorize`,
 };
 
 // Tasks API
@@ -190,6 +200,74 @@ export const credentialsApi = {
 export const dashboardApi = {
   get: () =>
     request<DashboardData>('/dashboard'),
+};
+
+// Documents API
+export interface DocumentSummary {
+  id: number;
+  title: string;
+  slug: string;
+  parent_id: number | null;
+  is_pinned: boolean;
+  sort_order: number;
+  has_children: boolean;
+}
+
+export interface Document {
+  id: number;
+  title: string;
+  slug: string;
+  content: string;
+  parent_id: number | null;
+  author: string;
+  last_edited_by: string;
+  is_pinned: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  children: DocumentSummary[];
+}
+
+export const documentsApi = {
+  getAll: (parentId?: number) =>
+    request<DocumentSummary[]>(parentId ? `/documents?parent_id=${parentId}` : '/documents'),
+
+  getTree: () =>
+    request<DocumentSummary[]>('/documents/tree'),
+
+  search: (query: string) =>
+    request<DocumentSummary[]>(`/documents/search?q=${encodeURIComponent(query)}`),
+
+  get: (id: number) =>
+    request<Document>(`/documents/${id}`),
+
+  getBySlug: (slug: string) =>
+    request<Document>(`/documents/slug/${slug}`),
+
+  create: (doc: {
+    title: string;
+    content?: string;
+    parent_id?: number;
+    is_pinned?: boolean;
+  }) =>
+    request<Document>('/documents', {
+      method: 'POST',
+      body: JSON.stringify(doc),
+    }),
+
+  update: (id: number, doc: {
+    title?: string;
+    content?: string;
+    parent_id?: number;
+    is_pinned?: boolean;
+  }) =>
+    request<Document>(`/documents/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(doc),
+    }),
+
+  delete: (id: number) =>
+    request<{ message: string }>(`/documents/${id}`, { method: 'DELETE' }),
 };
 
 // Health API

@@ -288,22 +288,43 @@ function CredentialCard({
   const Icon = typeIcons[credential.credential_type] || Key;
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(credential.value);
-    setCopied(true);
-
-    // Auto-clear clipboard after 15 seconds
-    setTimeout(async () => {
-      try {
-        const current = await navigator.clipboard.readText();
-        if (current === credential.value) {
-          await navigator.clipboard.writeText('');
-        }
-      } catch {
-        // Clipboard access denied
+    try {
+      // Try modern clipboard API first (requires HTTPS or localhost)
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(credential.value);
+      } else {
+        // Fallback for HTTP: use deprecated execCommand
+        const textArea = document.createElement('textarea');
+        textArea.value = credential.value;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        textArea.remove();
       }
-    }, 15000);
+      setCopied(true);
 
-    setTimeout(() => setCopied(false), 2000);
+      // Auto-clear clipboard after 15 seconds (only works with secure context)
+      if (navigator.clipboard && window.isSecureContext) {
+        setTimeout(async () => {
+          try {
+            const current = await navigator.clipboard.readText();
+            if (current === credential.value) {
+              await navigator.clipboard.writeText('');
+            }
+          } catch {
+            // Clipboard access denied
+          }
+        }, 15000);
+      }
+
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
   };
 
   return (

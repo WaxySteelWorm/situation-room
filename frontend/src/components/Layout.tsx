@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   CheckSquare,
   Key,
+  FileText,
   LogOut,
   Server,
   Cpu,
@@ -22,6 +23,7 @@ export default function Layout() {
     { to: '/', icon: LayoutDashboard, label: 'Dashboard', exact: true },
     { to: '/tasks', icon: CheckSquare, label: 'Tasks' },
     { to: '/passwords', icon: Key, label: 'Passwords' },
+    { to: '/documents', icon: FileText, label: 'Documents' },
     // Placeholders for v2
     { to: '#', icon: Server, label: 'Monitoring', disabled: true },
     { to: '#', icon: Cpu, label: 'Automation', disabled: true },

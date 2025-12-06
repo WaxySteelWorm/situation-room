@@ -60,6 +60,38 @@ class EncryptionConfig(BaseModel):
     salt: str = "change-me-in-production-32chars"
 
 
+class OIDCProviderConfig(BaseModel):
+    """Configuration for an OIDC/OAuth2 provider."""
+    name: str  # Display name (e.g., "Google", "Microsoft")
+    client_id: str = ""
+    client_secret: str = ""
+    # OIDC discovery URL (e.g., https://accounts.google.com/.well-known/openid-configuration)
+    discovery_url: str = ""
+    # Or manual endpoints if no discovery URL
+    authorization_url: str = ""
+    token_url: str = ""
+    userinfo_url: str = ""
+    # Scopes to request
+    scopes: list[str] = ["openid", "email", "profile"]
+    # Claim mappings
+    email_claim: str = "email"
+    name_claim: str = "name"
+
+
+class SSOConfig(BaseModel):
+    enabled: bool = False
+    # Allow local password login alongside SSO
+    allow_password_login: bool = True
+    # Auto-create users on first SSO login (if False, user must exist in config)
+    auto_create_users: bool = False
+    # Default role for auto-created users
+    default_role: str = "user"
+    # Allowed email domains (empty = all allowed)
+    allowed_domains: list[str] = []
+    # OIDC providers
+    providers: list[OIDCProviderConfig] = []
+
+
 class FeaturesConfig(BaseModel):
     monitoring_enabled: bool = False
     ansible_enabled: bool = False
@@ -76,6 +108,7 @@ class Config(BaseModel):
     smtp: SmtpConfig = SmtpConfig()
     discord: DiscordConfig = DiscordConfig()
     encryption: EncryptionConfig = EncryptionConfig()
+    sso: SSOConfig = SSOConfig()
     features: FeaturesConfig = FeaturesConfig()
 
 

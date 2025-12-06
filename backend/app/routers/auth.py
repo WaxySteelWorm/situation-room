@@ -1,11 +1,13 @@
 """Authentication API routes."""
 
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Response, Cookie, Depends
+from fastapi import APIRouter, HTTPException, Response, Cookie, Depends, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from ..config import get_config
 from ..services.auth import get_auth_service, Session
+from ..services.sso import get_sso_service
 
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -59,15 +61,16 @@ async def get_optional_session(
 
 @router.post("/login", response_model=LoginResponse)
 async def login(request: LoginRequest, response: Response):
-    """
-    Authenticate a user and create a session.
+    """Authenticate a user with username/password and create a session."""
+    config = get_config()
 
-    SSO Extension Notes:
-    - This endpoint can be extended to support SSO by:
-      1. Adding a 'provider' field to the request
-      2. Implementing OAuth callback handling in a separate endpoint
-      3. The session management remains the same
-    """
+    # Check if password login is allowed
+    if config.sso.enabled and not config.sso.allow_password_login:
+        raise HTTPException(
+            status_code=403,
+            detail="Password login is disabled. Please use SSO."
+        )
+
     auth_service = get_auth_service()
     session = auth_service.authenticate(request.username, request.password)
 
@@ -124,3 +127,132 @@ async def refresh_session(session: Session = Depends(get_current_session)):
     """Refresh the current session (updates last activity)."""
     # The get_current_session dependency already updates last_activity
     return {"message": "Session refreshed"}
+
+
+# SSO Endpoints
+
+
+class SSOProviderResponse(BaseModel):
+    name: str
+    id: str
+
+
+class AuthConfigResponse(BaseModel):
+    sso_enabled: bool
+    allow_password_login: bool
+    providers: list[SSOProviderResponse]
+
+
+@router.get("/config", response_model=AuthConfigResponse)
+async def get_auth_config():
+    """Get authentication configuration for the login page."""
+    config = get_config()
+    sso_service = get_sso_service()
+
+    providers = sso_service.get_providers()
+
+    return AuthConfigResponse(
+        sso_enabled=config.sso.enabled,
+        allow_password_login=config.sso.allow_password_login if config.sso.enabled else True,
+        providers=[SSOProviderResponse(**p) for p in providers],
+    )
+
+
+@router.get("/sso/{provider}/authorize")
+async def sso_authorize(provider: str, request: Request):
+    """Initiate SSO login by redirecting to the provider's authorization page."""
+    config = get_config()
+    if not config.sso.enabled:
+        raise HTTPException(status_code=404, detail="SSO is not enabled")
+
+    sso_service = get_sso_service()
+
+    # Build redirect URI
+    scheme = "https" if config.https.enabled else "http"
+    host = request.headers.get("host", config.https.domain)
+    redirect_uri = f"{scheme}://{host}/api/auth/sso/{provider}/callback"
+
+    auth_url = await sso_service.get_authorization_url(provider, redirect_uri)
+
+    if not auth_url:
+        raise HTTPException(status_code=404, detail=f"Provider '{provider}' not found")
+
+    return RedirectResponse(url=auth_url)
+
+
+@router.get("/sso/{provider}/callback")
+async def sso_callback(
+    provider: str,
+    request: Request,
+    response: Response,
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+):
+    """Handle the OAuth callback from the SSO provider."""
+    config = get_config()
+    if not config.sso.enabled:
+        raise HTTPException(status_code=404, detail="SSO is not enabled")
+
+    # Handle error from provider
+    if error:
+        return RedirectResponse(url=f"/login?error={error}")
+
+    if not code or not state:
+        return RedirectResponse(url="/login?error=invalid_callback")
+
+    sso_service = get_sso_service()
+
+    # Validate state token
+    validated_provider = sso_service.validate_state(state)
+    if not validated_provider:
+        return RedirectResponse(url="/login?error=invalid_state")
+
+    # Build redirect URI (must match the one used in authorize)
+    scheme = "https" if config.https.enabled else "http"
+    host = request.headers.get("host", config.https.domain)
+    redirect_uri = f"{scheme}://{host}/api/auth/sso/{provider}/callback"
+
+    # Exchange code for user info
+    user_info = await sso_service.exchange_code(provider, code, redirect_uri)
+
+    if not user_info:
+        return RedirectResponse(url="/login?error=authentication_failed")
+
+    # Find or create user
+    auth_service = get_auth_service()
+    email = user_info["email"]
+    name = user_info["name"]
+
+    # Check if user exists in config
+    user = auth_service.get_user_by_email(email)
+
+    if not user:
+        if config.sso.auto_create_users:
+            # Create session for new user
+            session = auth_service.create_sso_session(
+                email=email,
+                name=name,
+                role=config.sso.default_role,
+            )
+        else:
+            return RedirectResponse(url="/login?error=user_not_authorized")
+    else:
+        # Create session for existing user
+        session = auth_service.create_session_for_user(user)
+
+    if not session:
+        return RedirectResponse(url="/login?error=session_creation_failed")
+
+    # Set session cookie
+    response = RedirectResponse(url="/")
+    response.set_cookie(
+        key="session_id",
+        value=session.session_id,
+        httponly=True,
+        secure=config.https.enabled,
+        samesite="lax",
+        max_age=None,
+    )
+
+    return response

@@ -68,6 +68,57 @@ encryption:
   # Override via SITUATION_ROOM_ENCRYPTION_SALT env var
   salt: "change-me-in-production-32chars"
 
+# SSO/OAuth Configuration
+sso:
+  enabled: false
+  # Allow local password login alongside SSO
+  allow_password_login: true
+  # Auto-create users on first SSO login (if false, user must exist in users list)
+  auto_create_users: false
+  # Default role for auto-created users
+  default_role: "user"
+  # Restrict login to specific email domains (empty = allow all)
+  allowed_domains: []
+  # OIDC/OAuth2 providers
+  providers:
+    # Google Example
+    # - name: "Google"
+    #   client_id: "your-google-client-id.apps.googleusercontent.com"
+    #   client_secret: "your-google-client-secret"
+    #   discovery_url: "https://accounts.google.com/.well-known/openid-configuration"
+    #   scopes: ["openid", "email", "profile"]
+    #   email_claim: "email"
+    #   name_claim: "name"
+
+    # Microsoft/Azure AD Example
+    # - name: "Microsoft"
+    #   client_id: "your-azure-app-client-id"
+    #   client_secret: "your-azure-client-secret"
+    #   discovery_url: "https://login.microsoftonline.com/{tenant-id}/v2.0/.well-known/openid-configuration"
+    #   scopes: ["openid", "email", "profile"]
+    #   email_claim: "email"
+    #   name_claim: "name"
+
+    # Okta Example
+    # - name: "Okta"
+    #   client_id: "your-okta-client-id"
+    #   client_secret: "your-okta-client-secret"
+    #   discovery_url: "https://your-domain.okta.com/.well-known/openid-configuration"
+    #   scopes: ["openid", "email", "profile"]
+    #   email_claim: "email"
+    #   name_claim: "name"
+
+    # Generic OIDC (manual endpoints)
+    # - name: "Custom SSO"
+    #   client_id: "your-client-id"
+    #   client_secret: "your-client-secret"
+    #   authorization_url: "https://sso.example.com/authorize"
+    #   token_url: "https://sso.example.com/token"
+    #   userinfo_url: "https://sso.example.com/userinfo"
+    #   scopes: ["openid", "email", "profile"]
+    #   email_claim: "email"
+    #   name_claim: "name"
+
 # Feature Flags (for future extensibility)
 features:
   # Placeholder for v2 features

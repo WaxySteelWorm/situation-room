@@ -2,13 +2,16 @@ import { useState, useEffect } from 'react';
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
+  closestCenter,
+  pointerWithin,
+  rectIntersection,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
+  type CollisionDetection,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -139,6 +142,30 @@ export default function TasksPage() {
   const getTasksByStatus = (status: string) =>
     tasks.filter((t) => t.status === status).sort((a, b) => a.position - b.position);
 
+  // Custom collision detection that prioritizes columns over tasks
+  const collisionDetection: CollisionDetection = (args) => {
+    // First check if we're over a droppable column
+    const pointerCollisions = pointerWithin(args);
+    const columnCollision = pointerCollisions.find((collision) =>
+      COLUMNS.some((col) => col.id === collision.id)
+    );
+
+    if (columnCollision) {
+      // If over a column, also check for task collisions within that column
+      const taskCollisions = rectIntersection(args).filter(
+        (collision) => !COLUMNS.some((col) => col.id === collision.id)
+      );
+
+      if (taskCollisions.length > 0) {
+        return taskCollisions;
+      }
+      return [columnCollision];
+    }
+
+    // Fall back to closest center for tasks
+    return closestCenter(args);
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 flex items-center justify-center h-full">
@@ -162,7 +189,7 @@ export default function TasksPage() {
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={collisionDetection}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >

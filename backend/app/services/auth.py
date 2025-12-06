@@ -57,6 +57,14 @@ class AuthService:
                 return user
         return None
 
+    def get_user_by_email(self, email: str) -> Optional[UserConfig]:
+        """Get user configuration by email address."""
+        config = get_config()
+        for user in config.users:
+            if user.email.lower() == email.lower():
+                return user
+        return None
+
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify a password against its hash."""
         return bcrypt.checkpw(
@@ -153,6 +161,43 @@ class AuthService:
             del self._sessions[session_id]
 
         return active_sessions
+
+    def create_session_for_user(self, user: UserConfig) -> Session:
+        """Create a session for an existing user (used by SSO)."""
+        session_id = secrets.token_urlsafe(32)
+        now = datetime.utcnow()
+
+        session = Session(
+            session_id=session_id,
+            username=user.username,
+            email=user.email,
+            role=user.role,
+            created_at=now,
+            last_activity=now,
+        )
+
+        self._sessions[session_id] = session
+        return session
+
+    def create_sso_session(self, email: str, name: str, role: str) -> Session:
+        """Create a session for an SSO user not in config (auto-created)."""
+        session_id = secrets.token_urlsafe(32)
+        now = datetime.utcnow()
+
+        # Use email as username for SSO users
+        username = email.split("@")[0] if "@" in email else email
+
+        session = Session(
+            session_id=session_id,
+            username=username,
+            email=email,
+            role=role,
+            created_at=now,
+            last_activity=now,
+        )
+
+        self._sessions[session_id] = session
+        return session
 
 
 # Global singleton instance

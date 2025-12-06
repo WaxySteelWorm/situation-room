@@ -4,8 +4,8 @@ FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 
 # Install dependencies
-COPY frontend/package*.json ./
-RUN npm ci
+COPY frontend/package.json ./
+RUN npm install
 
 # Build frontend
 COPY frontend/ ./

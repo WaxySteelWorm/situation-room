@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Response, Cookie, Depends
 from pydantic import BaseModel
 
+from ..config import get_config
 from ..services.auth import get_auth_service, Session
 
 
@@ -74,12 +75,14 @@ async def login(request: LoginRequest, response: Response):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     # Set session cookie
+    # Only use secure cookies when HTTPS is enabled
+    config = get_config()
     response.set_cookie(
         key="session_id",
         value=session.session_id,
         httponly=True,
-        secure=True,
-        samesite="strict",
+        secure=config.https.enabled,
+        samesite="lax",  # Allow cookie on same-site navigation
         max_age=None,  # Session cookie (expires when browser closes)
     )
 

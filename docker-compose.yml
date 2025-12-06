@@ -7,8 +7,9 @@ services:
       dockerfile: Dockerfile
     container_name: situation-room
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    # Port 8000 is only exposed internally - Caddy handles external traffic
+    expose:
+      - "8000"
     volumes:
       - ./config.yml:/app/config.yml:ro
       - ./data:/app/data
@@ -27,23 +28,21 @@ services:
       retries: 3
       start_period: 10s
 
-  # Optional: Caddy reverse proxy for automatic HTTPS
-  # Uncomment this service if you want automatic HTTPS via Let's Encrypt
-  # caddy:
-  #   image: caddy:2-alpine
-  #   container_name: situation-room-proxy
-  #   restart: unless-stopped
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
-  #     - caddy_data:/data
-  #     - caddy_config:/config
-  #   depends_on:
-  #     - app
+  # Caddy reverse proxy for automatic HTTPS via Let's Encrypt
+  caddy:
+    image: caddy:2-alpine
+    container_name: situation-room-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
 
-# Uncomment if using Caddy
-# volumes:
-#   caddy_data:
-#   caddy_config:
+volumes:
+  caddy_data:
+  caddy_config:

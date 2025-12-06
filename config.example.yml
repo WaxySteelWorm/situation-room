@@ -9,8 +9,8 @@ server:
 # Let's Encrypt / HTTPS Configuration
 https:
   enabled: true
-  domain: "situation-room.example.com"
-  email: "admin@example.com"
+  domain: "vault.stormycloud.org"
+  email: "admin@stormycloud.org"
   # Certificate storage path (inside container)
   cert_path: "/app/certs"
 

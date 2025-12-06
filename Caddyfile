@@ -1,7 +1,6 @@
 # Caddyfile for automatic HTTPS via Let's Encrypt
-# Replace 'situation-room.example.com' with your actual domain
 
-situation-room.example.com {
+vault.stormycloud.org {
     # Automatic HTTPS via Let's Encrypt
     # Caddy handles certificate renewal automatically
 

@@ -10,17 +10,17 @@ interface TaskCardProps {
 }
 
 const priorityColors: Record<string, string> = {
-  low: 'border-l-gray-500',
-  medium: 'border-l-blue-500',
-  high: 'border-l-amber-500',
-  urgent: 'border-l-red-500',
+  low: 'border-l-gray-500 shadow-[inset_2px_0_5px_rgba(107,114,128,0.3)]',
+  medium: 'border-l-neon-blue shadow-[inset_2px_0_5px_rgba(0,243,255,0.3)]',
+  high: 'border-l-neon-purple shadow-[inset_2px_0_5px_rgba(157,0,255,0.3)]',
+  urgent: 'border-l-neon-pink shadow-[inset_2px_0_5px_rgba(255,0,255,0.3)]',
 };
 
 const priorityBadges: Record<string, string> = {
-  low: 'bg-gray-700 text-gray-300',
-  medium: 'bg-blue-500/20 text-blue-400',
-  high: 'bg-amber-500/20 text-amber-400',
-  urgent: 'bg-red-500/20 text-red-400',
+  low: 'bg-gray-800 text-gray-400 border border-gray-700',
+  medium: 'bg-neon-blue/10 text-neon-blue border border-neon-blue/30',
+  high: 'bg-neon-purple/10 text-neon-purple border border-neon-purple/30',
+  urgent: 'bg-neon-pink/10 text-neon-pink border border-neon-pink/30',
 };
 
 export default function TaskCard({ task, onClick, isDragging }: TaskCardProps) {
@@ -50,21 +50,21 @@ export default function TaskCard({ task, onClick, isDragging }: TaskCardProps) {
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className={`bg-gray-800 rounded-lg border-l-4 ${priorityColors[task.priority]}
-        p-3 cursor-pointer hover:bg-gray-750 transition-colors
-        ${isDragging || isSortableDragging ? 'opacity-50 shadow-lg' : ''}`}
+      className={`bg-cyber-gray/90 backdrop-blur-sm rounded-lg border-l-4 ${priorityColors[task.priority]}
+        p-3 cursor-pointer hover:bg-cyber-slate transition-all duration-300 border-y border-r border-white/5 hover:border-white/10 hover:shadow-glass
+        ${isDragging || isSortableDragging ? 'opacity-50 shadow-[0_0_20px_rgba(0,243,255,0.3)] border-neon-blue' : ''}`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h4 className="text-sm font-medium text-white line-clamp-2">
+        <h4 className="text-sm font-medium text-gray-100 line-clamp-2 group-hover:text-white transition-colors">
           {task.title}
         </h4>
         {task.is_recurring && (
-          <RefreshCw size={14} className="text-purple-400 flex-shrink-0" />
+          <RefreshCw size={14} className="text-neon-purple flex-shrink-0 drop-shadow-[0_0_5px_rgba(157,0,255,0.5)]" />
         )}
       </div>
 
       {task.description && (
-        <p className="text-xs text-gray-500 line-clamp-2 mb-2">
+        <p className="text-xs text-gray-400 line-clamp-2 mb-2">
           {task.description}
         </p>
       )}
@@ -74,8 +74,8 @@ export default function TaskCard({ task, onClick, isDragging }: TaskCardProps) {
           {task.labels.map((label) => (
             <span
               key={label.id}
-              className="text-xs px-1.5 py-0.5 rounded"
-              style={{ backgroundColor: `${label.color}30`, color: label.color }}
+              className="text-xs px-1.5 py-0.5 rounded border border-white/10"
+              style={{ backgroundColor: `${label.color}20`, color: label.color, borderColor: `${label.color}40` }}
             >
               {label.name}
             </span>
@@ -87,16 +87,15 @@ export default function TaskCard({ task, onClick, isDragging }: TaskCardProps) {
         <div className="flex items-center gap-3 text-gray-500">
           {task.due_date && (
             <span
-              className={`flex items-center gap-1 ${
-                isOverdue ? 'text-red-400' : ''
-              }`}
+              className={`flex items-center gap-1 ${isOverdue ? 'text-neon-pink drop-shadow-[0_0_5px_rgba(255,0,255,0.5)]' : 'text-gray-400'
+                }`}
             >
               <Calendar size={12} />
               {new Date(task.due_date).toLocaleDateString()}
             </span>
           )}
           {task.comments.length > 0 && (
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1 text-neon-blue/70">
               <MessageSquare size={12} />
               {task.comments.length}
             </span>
@@ -113,9 +112,8 @@ export default function TaskCard({ task, onClick, isDragging }: TaskCardProps) {
 
       <div className="mt-2 flex items-center justify-between">
         <span
-          className={`text-xs px-1.5 py-0.5 rounded ${
-            priorityBadges[task.priority]
-          }`}
+          className={`text-xs px-1.5 py-0.5 rounded ${priorityBadges[task.priority]
+            }`}
         >
           {task.priority}
         </span>

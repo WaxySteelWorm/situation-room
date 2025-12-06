@@ -61,10 +61,10 @@ export default function DashboardPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]">Dashboard</h1>
         <button
           onClick={loadDashboard}
-          className="text-sm text-gray-400 hover:text-white transition-colors"
+          className="text-sm text-neon-blue hover:text-white border border-neon-blue/30 hover:border-neon-blue hover:bg-neon-blue/10 px-4 py-2 rounded-lg transition-all duration-300 shadow-[0_0_10px_rgba(0,243,255,0.1)] hover:shadow-[0_0_15px_rgba(0,243,255,0.3)]"
         >
           Refresh
         </button>
@@ -82,13 +82,13 @@ export default function DashboardPage() {
           icon={Clock}
           label="In Progress"
           value={data.stats.in_progress_count}
-          color="amber"
+          color="purple"
         />
         <StatCard
           icon={AlertTriangle}
           label="Overdue"
           value={data.stats.overdue_count}
-          color="red"
+          color="pink"
         />
         <StatCard
           icon={TrendingUp}
@@ -100,15 +100,15 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Tasks Due Soon */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <div className="bg-cyber-gray/80 backdrop-blur-sm rounded-xl border border-white/10 p-5 shadow-glass hover:border-neon-purple/30 transition-colors duration-300">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Clock size={20} className="text-amber-400" />
+              <Clock size={20} className="text-neon-pink drop-shadow-[0_0_5px_rgba(255,0,255,0.5)]" />
               Tasks Due Soon
             </h2>
             <Link
               to="/tasks"
-              className="text-sm text-blue-400 hover:text-blue-300"
+              className="text-sm text-neon-blue hover:text-white transition-colors drop-shadow-[0_0_5px_rgba(0,243,255,0.5)]"
             >
               View all
             </Link>
@@ -120,10 +120,10 @@ export default function DashboardPage() {
               {data.tasks_due_soon.map((task) => (
                 <li
                   key={task.id}
-                  className="flex items-center justify-between py-2 px-3 bg-gray-800/50 rounded-lg"
+                  className="flex items-center justify-between py-2 px-3 bg-black/40 border border-white/5 rounded-lg hover:border-neon-pink/30 transition-colors"
                 >
                   <div>
-                    <p className="text-sm text-white">{task.title}</p>
+                    <p className="text-sm text-gray-200">{task.title}</p>
                     <p className="text-xs text-gray-500">
                       {task.due_date
                         ? new Date(task.due_date).toLocaleDateString()
@@ -140,10 +140,10 @@ export default function DashboardPage() {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <div className="bg-cyber-gray/80 backdrop-blur-sm rounded-xl border border-white/10 p-5 shadow-glass hover:border-neon-blue/30 transition-colors duration-300">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Activity size={20} className="text-blue-400" />
+              <Activity size={20} className="text-neon-blue drop-shadow-[0_0_5px_rgba(0,243,255,0.5)]" />
               Recent Tasks
             </h2>
           </div>
@@ -154,10 +154,10 @@ export default function DashboardPage() {
               {data.recent_tasks.map((task) => (
                 <li
                   key={task.id}
-                  className="flex items-center justify-between py-2 px-3 bg-gray-800/50 rounded-lg"
+                  className="flex items-center justify-between py-2 px-3 bg-black/40 border border-white/5 rounded-lg hover:border-neon-blue/30 transition-colors"
                 >
                   <div>
-                    <p className="text-sm text-white">{task.title}</p>
+                    <p className="text-sm text-gray-200">{task.title}</p>
                     <p className="text-xs text-gray-500">
                       {task.assignee || 'Unassigned'}
                     </p>
@@ -170,15 +170,15 @@ export default function DashboardPage() {
         </div>
 
         {/* System Health - Link to Monitoring */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <div className="bg-cyber-gray/80 backdrop-blur-sm rounded-xl border border-white/10 p-5 shadow-glass hover:border-neon-green/30 transition-colors duration-300">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Server size={20} className="text-green-400" />
+              <Server size={20} className="text-neon-green drop-shadow-[0_0_5px_rgba(0,255,157,0.5)]" />
               System Health
             </h2>
             <Link
               to="/monitoring"
-              className="text-sm text-blue-400 hover:text-blue-300"
+              className="text-sm text-neon-blue hover:text-white transition-colors drop-shadow-[0_0_5px_rgba(0,243,255,0.5)]"
             >
               View all
             </Link>
@@ -186,16 +186,16 @@ export default function DashboardPage() {
           <div className="text-center py-6">
             <div className="flex items-center justify-center gap-4 mb-4">
               <div className="text-center">
-                <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-2">
-                  <Server size={24} className="text-green-400" />
+                <div className="w-12 h-12 rounded-full bg-neon-green/10 border border-neon-green/30 flex items-center justify-center mx-auto mb-2 shadow-[0_0_15px_rgba(0,255,157,0.2)]">
+                  <Server size={24} className="text-neon-green" />
                 </div>
                 <p className="text-sm text-gray-400">Monitoring</p>
-                <p className="text-xs text-green-400">Active</p>
+                <p className="text-xs text-neon-green drop-shadow-[0_0_5px_rgba(0,255,157,0.5)]">Active</p>
               </div>
             </div>
             <Link
               to="/monitoring"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors text-sm"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-black/40 hover:bg-neon-green/10 text-gray-300 hover:text-neon-green border border-white/10 hover:border-neon-green/50 rounded-lg transition-all duration-300 text-sm"
             >
               <Activity size={16} />
               Open Monitoring Dashboard
@@ -204,13 +204,13 @@ export default function DashboardPage() {
         </div>
 
         {/* Ansible Jobs Placeholder */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <div className="bg-cyber-gray/80 backdrop-blur-sm rounded-xl border border-white/10 p-5 shadow-glass opacity-70">
           <div className="flex items-center gap-2 mb-4">
             <Terminal size={20} className="text-gray-500" />
             <h2 className="text-lg font-semibold text-gray-500">
               Recent Ansible Jobs
             </h2>
-            <span className="ml-auto text-xs bg-gray-800 text-gray-500 px-2 py-1 rounded">
+            <span className="ml-auto text-xs bg-black/40 text-gray-500 px-2 py-1 rounded border border-white/5">
               Coming in v2
             </span>
           </div>
@@ -236,24 +236,24 @@ function StatCard({
   icon: typeof CheckSquare;
   label: string;
   value: number;
-  color: 'blue' | 'amber' | 'red' | 'green';
+  color: 'blue' | 'purple' | 'pink' | 'green';
 }) {
   const colorClasses = {
-    blue: 'text-blue-400 bg-blue-400/10',
-    amber: 'text-amber-400 bg-amber-400/10',
-    red: 'text-red-400 bg-red-400/10',
-    green: 'text-green-400 bg-green-400/10',
+    blue: 'text-neon-blue bg-neon-blue/10 border-neon-blue/30 shadow-[0_0_15px_rgba(0,243,255,0.2)]',
+    purple: 'text-neon-purple bg-neon-purple/10 border-neon-purple/30 shadow-[0_0_15px_rgba(157,0,255,0.2)]',
+    pink: 'text-neon-pink bg-neon-pink/10 border-neon-pink/30 shadow-[0_0_15px_rgba(255,0,255,0.2)]',
+    green: 'text-neon-green bg-neon-green/10 border-neon-green/30 shadow-[0_0_15px_rgba(0,255,157,0.2)]',
   };
 
   return (
-    <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+    <div className="bg-cyber-gray/80 backdrop-blur-sm rounded-xl border border-white/10 p-5 shadow-glass hover:bg-cyber-gray transition-colors duration-300 group">
       <div className="flex items-center gap-4">
-        <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
+        <div className={`p-3 rounded-lg border ${colorClasses[color]} transition-all duration-300 group-hover:scale-110`}>
           <Icon size={24} />
         </div>
         <div>
-          <p className="text-2xl font-bold text-white">{value}</p>
-          <p className="text-sm text-gray-500">{label}</p>
+          <p className="text-2xl font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]">{value}</p>
+          <p className="text-sm text-gray-400">{label}</p>
         </div>
       </div>
     </div>
@@ -262,9 +262,9 @@ function StatCard({
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    todo: 'bg-gray-700 text-gray-300',
-    in_progress: 'bg-amber-500/20 text-amber-400',
-    done: 'bg-green-500/20 text-green-400',
+    todo: 'bg-gray-800/50 text-gray-400 border-gray-700',
+    in_progress: 'bg-neon-purple/10 text-neon-purple border-neon-purple/30 shadow-[0_0_10px_rgba(157,0,255,0.2)]',
+    done: 'bg-neon-green/10 text-neon-green border-neon-green/30 shadow-[0_0_10px_rgba(0,255,157,0.2)]',
   };
 
   const labels: Record<string, string> = {
@@ -274,7 +274,7 @@ function StatusBadge({ status }: { status: string }) {
   };
 
   return (
-    <span className={`text-xs px-2 py-1 rounded ${colors[status] || colors.todo}`}>
+    <span className={`text-xs px-2 py-1 rounded border ${colors[status] || colors.todo}`}>
       {labels[status] || status}
     </span>
   );

@@ -6,5 +6,6 @@ from .credentials import router as credentials_router
 from .dashboard import router as dashboard_router
 from .documents import router as documents_router
 from .columns import router as columns_router
+from .uploads import router as uploads_router
 
-__all__ = ["auth_router", "tasks_router", "credentials_router", "dashboard_router", "documents_router", "columns_router"]
+__all__ = ["auth_router", "tasks_router", "credentials_router", "dashboard_router", "documents_router", "columns_router", "uploads_router"]

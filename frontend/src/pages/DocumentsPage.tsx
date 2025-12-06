@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { documentsApi, type Document, type DocumentSummary } from '../services/api';
 import {
   FileText,
@@ -12,7 +12,12 @@ import {
   Save,
   X,
   ArrowLeft,
+  Upload,
+  Image,
+  Eye,
+  Code,
 } from 'lucide-react';
+import MarkdownRenderer from '../components/MarkdownRenderer';
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
@@ -454,9 +459,7 @@ function DocumentViewer({
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-3xl mx-auto">
           {document.content ? (
-            <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
-              {document.content}
-            </div>
+            <MarkdownRenderer content={document.content} />
           ) : (
             <p className="text-gray-500 italic">No content yet.</p>
           )}
@@ -487,6 +490,66 @@ function DocumentEditor({
   onCancel: () => void;
   isNew?: boolean;
 }) {
+  const [showPreview, setShowPreview] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/uploads', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Upload failed');
+      }
+
+      const data = await response.json();
+
+      // Insert markdown for the uploaded file
+      const isImage = /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(file.name);
+      const markdown = isImage
+        ? `![${file.name}](${data.url})`
+        : `[${file.name}](${data.url})`;
+
+      // Insert at cursor position or at end
+      const textarea = textareaRef.current;
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const newContent = content.substring(0, start) + markdown + content.substring(end);
+        onContentChange(newContent);
+
+        // Move cursor after inserted text
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + markdown.length;
+          textarea.focus();
+        }, 0);
+      } else {
+        onContentChange(content + '\n' + markdown);
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert(error instanceof Error ? error.message : 'Upload failed');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
@@ -528,15 +591,101 @@ function DocumentEditor({
         </div>
       </div>
 
-      {/* Content Editor */}
+      {/* Toolbar */}
+      <div className="px-6 py-2 border-b border-gray-800 flex items-center gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,.pdf,.drawio,.xml,.svg"
+          onChange={handleFileUpload}
+          className="hidden"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors text-sm"
+          title="Upload file"
+        >
+          {isUploading ? (
+            <span className="animate-spin">...</span>
+          ) : (
+            <Upload size={16} />
+          )}
+          Upload
+        </button>
+        <button
+          onClick={() => {
+            const markdown = '![Image description](/api/uploads/your-image.png)';
+            onContentChange(content + '\n' + markdown);
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors text-sm"
+          title="Insert image placeholder"
+        >
+          <Image size={16} />
+          Image
+        </button>
+        <div className="flex-1" />
+        <button
+          onClick={() => setShowPreview(!showPreview)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors text-sm ${
+            showPreview
+              ? 'bg-blue-600 text-white'
+              : 'text-gray-400 hover:text-white hover:bg-gray-800'
+          }`}
+        >
+          {showPreview ? <Code size={16} /> : <Eye size={16} />}
+          {showPreview ? 'Edit' : 'Preview'}
+        </button>
+      </div>
+
+      {/* Content Editor / Preview */}
       <div className="flex-1 overflow-hidden p-6">
         <div className="max-w-3xl mx-auto h-full">
-          <textarea
-            value={content}
-            onChange={(e) => onContentChange(e.target.value)}
-            placeholder="Write your content here... (Markdown supported)"
-            className="w-full h-full bg-gray-800 border border-gray-700 rounded-lg p-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none font-mono text-sm"
-          />
+          {showPreview ? (
+            <div className="h-full overflow-y-auto">
+              {content ? (
+                <MarkdownRenderer content={content} />
+              ) : (
+                <p className="text-gray-500 italic">Nothing to preview yet...</p>
+              )}
+            </div>
+          ) : (
+            <textarea
+              ref={textareaRef}
+              value={content}
+              onChange={(e) => onContentChange(e.target.value)}
+              placeholder="Write your content here using Markdown...
+
+# Heading 1
+## Heading 2
+### Heading 3
+
+**bold** and *italic*
+
+- Bullet list
+- Item 2
+
+1. Numbered list
+2. Item 2
+
+> Blockquote
+
+\`inline code\`
+
+\`\`\`python
+# Code block
+print('Hello')
+\`\`\`
+
+| Table | Header |
+|-------|--------|
+| Cell  | Cell   |
+
+![Image alt text](/api/uploads/image.png)
+[Link text](https://example.com)"
+              className="w-full h-full bg-gray-800 border border-gray-700 rounded-lg p-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none font-mono text-sm"
+            />
+          )}
         </div>
       </div>
     </div>

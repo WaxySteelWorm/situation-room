@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: situation-room
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+      - ./data:/app/data
+      - ./certs:/app/certs
+    environment:
+      - SITUATION_ROOM_CONFIG=/app/config.yml
+      # Override secrets via environment variables (recommended for production)
+      # - SITUATION_ROOM_SESSION_SECRET=your-secure-session-secret
+      # - SITUATION_ROOM_ENCRYPTION_SALT=your-secure-32-char-salt
+      # - SITUATION_ROOM_DISCORD_WEBHOOK=https://discord.com/api/webhooks/...
+      # - SITUATION_ROOM_SMTP_PASSWORD=your-smtp-password
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional: Caddy reverse proxy for automatic HTTPS
+  # Uncomment this service if you want automatic HTTPS via Let's Encrypt
+  # caddy:
+  #   image: caddy:2-alpine
+  #   container_name: situation-room-proxy
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy_data:/data
+  #     - caddy_config:/config
+  #   depends_on:
+  #     - app
+
+# Uncomment if using Caddy
+# volumes:
+#   caddy_data:
+#   caddy_config:

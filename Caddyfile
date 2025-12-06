@@ -1,0 +1,30 @@
+# Caddyfile for automatic HTTPS via Let's Encrypt
+# Replace 'situation-room.example.com' with your actual domain
+
+situation-room.example.com {
+    # Automatic HTTPS via Let's Encrypt
+    # Caddy handles certificate renewal automatically
+
+    # Proxy all requests to the app
+    reverse_proxy app:8000
+
+    # Security headers
+    header {
+        # Enable HSTS
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        # Prevent clickjacking
+        X-Frame-Options "DENY"
+        # Prevent content type sniffing
+        X-Content-Type-Options "nosniff"
+        # XSS protection
+        X-XSS-Protection "1; mode=block"
+        # Referrer policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # Logging
+    log {
+        output stdout
+        format console
+    }
+}

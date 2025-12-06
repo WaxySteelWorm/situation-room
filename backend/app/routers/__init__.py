@@ -1,0 +1,8 @@
+"""API routers for Situation Room."""
+
+from .auth import router as auth_router
+from .tasks import router as tasks_router
+from .credentials import router as credentials_router
+from .dashboard import router as dashboard_router
+
+__all__ = ["auth_router", "tasks_router", "credentials_router", "dashboard_router"]

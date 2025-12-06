@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import type { MapPoint } from '../../types';
 
 interface ThreatMapProps {
@@ -26,7 +26,7 @@ function getPointSize(count: number, maxCount: number): number {
 
 export default function ThreatMap({ points, isLoading, timeWindow, onTimeWindowChange }: ThreatMapProps) {
   const [hoveredPoint, setHoveredPoint] = useState<MapPoint | null>(null);
-  const [dimensions, setDimensions] = useState({ width: 900, height: 450 });
+  const dimensions = { width: 900, height: 450 };
 
   const maxCount = Math.max(...points.map(p => p.count), 1);
   const totalEvents = points.reduce((sum, p) => sum + p.count, 0);
@@ -81,14 +81,11 @@ export default function ThreatMap({ points, isLoading, timeWindow, onTimeWindowC
         <svg
           viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
           className="w-full h-full"
-          style={{ background: 'linear-gradient(180deg, #0a0a0f 0%, #111827 100%)' }}
+          style={{ background: '#0f172a' }}
+          preserveAspectRatio="xMidYMid slice"
         >
-          {/* Grid lines for effect */}
+          {/* Glow filter for points */}
           <defs>
-            <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
-              <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#1f2937" strokeWidth="0.5" opacity="0.3" />
-            </pattern>
-            {/* Glow filter for points */}
             <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="3" result="coloredBlur" />
               <feMerge>
@@ -103,10 +100,16 @@ export default function ThreatMap({ points, isLoading, timeWindow, onTimeWindowC
             </radialGradient>
           </defs>
 
-          <rect width="100%" height="100%" fill="url(#grid)" />
-
-          {/* World map outline (simplified) */}
-          <WorldMapPath />
+          {/* World map image */}
+          <image
+            href="https://upload.wikimedia.org/wikipedia/commons/e/e8/Flat_earth_night.png"
+            x="0"
+            y="0"
+            width={dimensions.width}
+            height={dimensions.height}
+            preserveAspectRatio="xMidYMid slice"
+            opacity="0.6"
+          />
 
           {/* Threat points */}
           {points.map((point, idx) => {
@@ -204,41 +207,3 @@ export default function ThreatMap({ points, isLoading, timeWindow, onTimeWindowC
   );
 }
 
-// Simplified world map SVG path
-function WorldMapPath() {
-  return (
-    <g fill="none" stroke="#374151" strokeWidth="0.5" opacity="0.6">
-      {/* This is a very simplified world map - major landmasses */}
-      {/* North America */}
-      <path d="M 120 120 L 180 100 L 220 110 L 250 130 L 240 160 L 200 180 L 160 170 L 130 150 Z" />
-      <path d="M 100 130 L 120 120 L 130 150 L 110 160 Z" /> {/* Alaska */}
-
-      {/* South America */}
-      <path d="M 200 220 L 230 200 L 250 220 L 260 280 L 240 340 L 210 350 L 190 300 L 180 250 Z" />
-
-      {/* Europe */}
-      <path d="M 420 100 L 480 90 L 520 100 L 510 130 L 470 140 L 430 130 Z" />
-
-      {/* Africa */}
-      <path d="M 420 180 L 480 160 L 520 180 L 530 250 L 500 320 L 450 330 L 420 280 L 410 220 Z" />
-
-      {/* Asia */}
-      <path d="M 520 80 L 600 70 L 700 90 L 750 120 L 780 180 L 720 200 L 650 180 L 580 160 L 530 130 Z" />
-
-      {/* Australia */}
-      <path d="M 720 280 L 780 270 L 820 290 L 810 330 L 760 340 L 720 320 Z" />
-
-      {/* Greenland */}
-      <path d="M 290 60 L 330 50 L 360 60 L 350 90 L 310 95 L 285 80 Z" />
-
-      {/* Japan/Islands */}
-      <path d="M 790 140 L 810 130 L 820 150 L 800 165 Z" />
-
-      {/* UK */}
-      <path d="M 410 100 L 420 95 L 425 110 L 415 115 Z" />
-
-      {/* Indonesia region */}
-      <path d="M 680 240 L 720 235 L 740 250 L 710 260 Z" />
-    </g>
-  );
-}

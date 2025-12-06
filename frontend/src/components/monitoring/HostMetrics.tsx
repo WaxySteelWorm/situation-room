@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { monitoringApi } from '../../services/api';
-import type { HostMetrics as HostMetricsType, MetricValue } from '../../types';
+import type { HostMetrics as HostMetricsType } from '../../types';
 import {
   Cpu,
   HardDrive,
@@ -122,20 +122,6 @@ export default function HostMetrics({ prometheusAvailable }: HostMetricsProps) {
     return `${hours}h ${mins}m`;
   };
 
-  const getStatusColor = (value: number | null, thresholds: { warn: number; crit: number }): string => {
-    if (value === null) return 'text-gray-500';
-    if (value >= thresholds.crit) return 'text-red-400';
-    if (value >= thresholds.warn) return 'text-amber-400';
-    return 'text-green-400';
-  };
-
-  const getProgressColor = (value: number | null, thresholds: { warn: number; crit: number }): string => {
-    if (value === null) return 'bg-gray-600';
-    if (value >= thresholds.crit) return 'bg-red-500';
-    if (value >= thresholds.warn) return 'bg-amber-500';
-    return 'bg-green-500';
-  };
-
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
       {/* Header */}
@@ -191,21 +177,18 @@ export default function HostMetrics({ prometheusAvailable }: HostMetricsProps) {
                   <div className="hidden md:flex items-center gap-6 text-sm">
                     <MetricBadge
                       icon={Cpu}
-                      label="CPU"
                       value={metrics?.cpu_usage_percent}
                       format={(v) => `${v?.toFixed(1)}%`}
                       thresholds={{ warn: 70, crit: 90 }}
                     />
                     <MetricBadge
                       icon={MemoryStick}
-                      label="RAM"
                       value={metrics?.memory_usage_percent}
                       format={(v) => `${v?.toFixed(1)}%`}
                       thresholds={{ warn: 80, crit: 95 }}
                     />
                     <MetricBadge
                       icon={HardDrive}
-                      label="Disk"
                       value={metrics?.disk_usage_percent}
                       format={(v) => `${v?.toFixed(1)}%`}
                       thresholds={{ warn: 80, crit: 90 }}
@@ -320,13 +303,11 @@ export default function HostMetrics({ prometheusAvailable }: HostMetricsProps) {
 
 function MetricBadge({
   icon: Icon,
-  label,
   value,
   format,
   thresholds,
 }: {
   icon: typeof Cpu;
-  label: string;
   value: number | null | undefined;
   format: (v: number | null) => string;
   thresholds: { warn: number; crit: number };

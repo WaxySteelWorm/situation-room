@@ -456,10 +456,23 @@ async def agent_websocket(
             if msg_type == "ufw_logs":
                 # Process UFW log entries
                 logs = data.get("logs", [])
+                logger.info(f"Received {len(logs)} UFW logs from {hostname}")
+                parsed_count = 0
                 for log_line in logs:
                     parsed = WebSocketManager.parse_ufw_log(log_line)
                     if parsed:
-                        await monitoring_service.record_threat_event(hostname, parsed)
+                        parsed_count += 1
+                        try:
+                            await monitoring_service.record_threat_event(hostname, parsed)
+                        except Exception as e:
+                            logger.error(f"Failed to record threat event: {e}")
+                    else:
+                        logger.debug(f"Failed to parse UFW log: {log_line[:100]}")
+
+                if parsed_count > 0:
+                    logger.info(f"Recorded {parsed_count} threat events from {hostname}")
+                elif logs:
+                    logger.warning(f"No UFW logs could be parsed from {hostname}. Sample: {logs[0][:100] if logs else 'N/A'}")
 
                 # Update last seen
                 await monitoring_service.update_agent_status(hostname)

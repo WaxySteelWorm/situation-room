@@ -31,6 +31,9 @@ COPY backend/app ./app
 # Copy built frontend from builder stage
 COPY --from=frontend-builder /app/backend/app/static ./app/static
 
+# Copy agent files (for serving via /agent/ endpoints)
+COPY agent ./agent
+
 # Create directories for data and certs
 RUN mkdir -p /app/data /app/certs
 

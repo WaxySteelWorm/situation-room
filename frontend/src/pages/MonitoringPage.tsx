@@ -60,15 +60,6 @@ export default function MonitoringPage() {
     setTimeWindow(minutes);
   };
 
-  const getAgentStatusColor = (agentStatus: string) => {
-    switch (agentStatus) {
-      case 'online': return 'text-green-400';
-      case 'stale': return 'text-amber-400';
-      case 'offline': return 'text-red-400';
-      default: return 'text-gray-400';
-    }
-  };
-
   const getAgentStatusIcon = (agentStatus: string) => {
     switch (agentStatus) {
       case 'online': return <Wifi size={14} className="text-green-400" />;

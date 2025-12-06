@@ -130,6 +130,39 @@ async def health_check():
     return {"status": "healthy", "service": "situation-room"}
 
 
+# Agent download endpoints (for easy installation)
+# In container: /app/agent, in dev: ../../../agent relative to this file
+agent_path = Path("/app/agent")
+if not agent_path.exists():
+    agent_path = Path(__file__).parent.parent.parent.parent / "agent"
+
+
+@app.get("/agent/install.sh")
+async def get_agent_installer():
+    """Serve the agent installer script."""
+    script_path = agent_path / "install" / "install.sh"
+    if script_path.exists():
+        return FileResponse(
+            script_path,
+            media_type="text/x-shellscript",
+            filename="install.sh"
+        )
+    return {"detail": "Installer not found"}
+
+
+@app.get("/agent/situation-room-agent.py")
+async def get_agent_script():
+    """Serve the agent Python script."""
+    script_path = agent_path / "situation-room-agent.py"
+    if script_path.exists():
+        return FileResponse(
+            script_path,
+            media_type="text/x-python",
+            filename="situation-room-agent.py"
+        )
+    return {"detail": "Agent script not found"}
+
+
 # Serve static files (frontend build)
 static_path = Path(__file__).parent / "static"
 if static_path.exists():

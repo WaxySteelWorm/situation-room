@@ -138,6 +138,8 @@ class MonitoringService:
         # Perform GeoIP lookup
         geo = self.geoip.lookup(log_entry.source_ip)
 
+        # Use current UTC time for event_time to avoid timezone issues
+        # The log timestamp is in local time but we need UTC for consistent querying
         event = ThreatEvent(
             agent_hostname=hostname,
             source_ip=log_entry.source_ip,
@@ -151,7 +153,7 @@ class MonitoringService:
             longitude=geo.longitude,
             city=geo.city,
             raw_log=log_entry.raw_log,
-            event_time=log_entry.timestamp
+            event_time=datetime.utcnow()
         )
 
         self.db.add(event)

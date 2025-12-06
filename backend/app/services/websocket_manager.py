@@ -157,23 +157,37 @@ class WebSocketManager:
         """
         Parse a UFW log line into structured data.
 
-        Example log line:
-        Dec  6 12:34:56 hostname kernel: [12345.678901] [UFW BLOCK] IN=eth0 OUT= MAC=... SRC=1.2.3.4 DST=5.6.7.8 LEN=60 TOS=0x00 PREC=0x00 TTL=49 ID=12345 DF PROTO=TCP SPT=45678 DPT=22 WINDOW=65535 RES=0x00 SYN URGP=0
+        Example log lines:
+        Syslog format: Dec  6 12:34:56 hostname kernel: [12345.678901] [UFW BLOCK] IN=eth0 OUT= MAC=... SRC=1.2.3.4 DST=5.6.7.8 ...
+        ISO 8601 format: 2025-12-06T14:06:32.202018-06:00 hostname kernel: [UFW BLOCK] IN=eth0 OUT= MAC=... SRC=1.2.3.4 DST=5.6.7.8 ...
         """
         if "[UFW BLOCK]" not in log_line:
             return None
 
-        # Parse timestamp (syslog format)
-        timestamp_match = re.match(r'^(\w+\s+\d+\s+\d+:\d+:\d+)', log_line)
-        if not timestamp_match:
-            return None
+        timestamp = None
 
-        try:
-            timestamp_str = timestamp_match.group(1)
-            # Add current year since syslog doesn't include it
-            current_year = datetime.utcnow().year
-            timestamp = datetime.strptime(f"{current_year} {timestamp_str}", "%Y %b %d %H:%M:%S")
-        except ValueError:
+        # Try ISO 8601 format first (e.g., 2025-12-06T14:06:32.202018-06:00)
+        iso_match = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})', log_line)
+        if iso_match:
+            try:
+                timestamp_str = iso_match.group(1)
+                timestamp = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S")
+            except ValueError:
+                pass
+
+        # Try syslog format (e.g., Dec  6 12:34:56)
+        if not timestamp:
+            syslog_match = re.match(r'^(\w+\s+\d+\s+\d+:\d+:\d+)', log_line)
+            if syslog_match:
+                try:
+                    timestamp_str = syslog_match.group(1)
+                    current_year = datetime.utcnow().year
+                    timestamp = datetime.strptime(f"{current_year} {timestamp_str}", "%Y %b %d %H:%M:%S")
+                except ValueError:
+                    pass
+
+        # Fallback to current time
+        if not timestamp:
             timestamp = datetime.utcnow()
 
         # Extract fields using regex

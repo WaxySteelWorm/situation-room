@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { tasksApi } from '../services/api';
 import { X } from 'lucide-react';
+import UserSearch from './UserSearch';
 
 interface CreateTaskModalProps {
   onClose: () => void;
@@ -125,12 +126,10 @@ export default function CreateTaskModal({
               <label className="block text-sm font-medium text-gray-400 mb-1">
                 Assignee
               </label>
-              <input
-                type="text"
+              <UserSearch
                 value={assignee}
-                onChange={(e) => setAssignee(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                placeholder="Username"
+                onChange={(value) => setAssignee(value)}
+                placeholder="Search users..."
               />
             </div>
 

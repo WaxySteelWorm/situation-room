@@ -5,6 +5,7 @@ from .task import Task, TaskComment, TaskLabel
 from .credential import Credential, UserVault
 from .document import Document
 from .column import Column
+from .user import User
 
 __all__ = [
     "Base",
@@ -17,4 +18,5 @@ __all__ = [
     "UserVault",
     "Document",
     "Column",
+    "User",
 ]

@@ -313,6 +313,41 @@ export const columnsApi = {
     }),
 };
 
+// Users API
+export interface UserProfile {
+  id: number;
+  email: string;
+  name: string;
+  picture: string | null;
+  role: string;
+  is_active: boolean;
+  provider: string | null;
+  last_login: string | null;
+}
+
+export const usersApi = {
+  getAll: (activeOnly = true) =>
+    request<UserProfile[]>(`/users?active_only=${activeOnly}`),
+
+  search: (query: string, limit = 10) =>
+    request<UserProfile[]>(`/users/search?q=${encodeURIComponent(query)}&limit=${limit}`),
+
+  getMe: () =>
+    request<UserProfile>('/users/me'),
+
+  get: (id: number) =>
+    request<UserProfile>(`/users/${id}`),
+
+  update: (id: number, data: { name?: string; role?: string; is_active?: boolean }) =>
+    request<UserProfile>(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: number) =>
+    request<{ message: string }>(`/users/${id}`, { method: 'DELETE' }),
+};
+
 // Health API
 export const healthApi = {
   check: () =>

@@ -4,10 +4,13 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Response, Cookie, Depends, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_config
 from ..services.auth import get_auth_service, Session
 from ..services.sso import get_sso_service
+from ..services.user import UserService
+from ..models.database import get_db
 
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -184,10 +187,10 @@ async def sso_authorize(provider: str, request: Request):
 async def sso_callback(
     provider: str,
     request: Request,
-    response: Response,
     code: Optional[str] = None,
     state: Optional[str] = None,
     error: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
 ):
     """Handle the OAuth callback from the SSO provider."""
     config = get_config()
@@ -219,27 +222,50 @@ async def sso_callback(
     if not user_info:
         return RedirectResponse(url="/login?error=authentication_failed")
 
-    # Find or create user
-    auth_service = get_auth_service()
     email = user_info["email"]
     name = user_info["name"]
+    picture = user_info.get("picture")
+    provider_id = user_info.get("sub")
 
-    # Check if user exists in config
-    user = auth_service.get_user_by_email(email)
+    # Check domain restriction
+    if config.sso.allowed_domains:
+        email_domain = email.split("@")[-1].lower()
+        allowed = [d.lower() for d in config.sso.allowed_domains]
+        if email_domain not in allowed:
+            return RedirectResponse(url="/login?error=domain_not_allowed")
 
-    if not user:
-        if config.sso.auto_create_users:
-            # Create session for new user
-            session = auth_service.create_sso_session(
-                email=email,
-                name=name,
-                role=config.sso.default_role,
-            )
-        else:
-            return RedirectResponse(url="/login?error=user_not_authorized")
+    # Use UserService to get or create user in database
+    user_service = UserService(db)
+    auth_service = get_auth_service()
+
+    # Check if user exists in config file first
+    config_user = auth_service.get_user_by_email(email)
+
+    if config_user:
+        # User exists in config, use their role
+        role = config_user.role
+    elif config.sso.auto_create_users:
+        # Auto-create with default role
+        role = config.sso.default_role
     else:
-        # Create session for existing user
-        session = auth_service.create_session_for_user(user)
+        return RedirectResponse(url="/login?error=user_not_authorized")
+
+    # Get or create user in database
+    db_user, created = await user_service.get_or_create_sso_user(
+        email=email,
+        name=name,
+        provider=provider,
+        provider_id=provider_id,
+        picture=picture,
+        default_role=role,
+    )
+
+    # Create session
+    session = auth_service.create_sso_session(
+        email=email,
+        name=name,
+        role=db_user.role,
+    )
 
     if not session:
         return RedirectResponse(url="/login?error=session_creation_failed")

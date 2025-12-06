@@ -70,25 +70,26 @@ encryption:
 
 # SSO/OAuth Configuration
 sso:
-  enabled: false
+  enabled: true
   # Allow local password login alongside SSO
   allow_password_login: true
   # Auto-create users on first SSO login (if false, user must exist in users list)
-  auto_create_users: false
+  auto_create_users: true
   # Default role for auto-created users
   default_role: "user"
   # Restrict login to specific email domains (empty = allow all)
-  allowed_domains: []
+  allowed_domains:
+    - "stormycloud.org"
   # OIDC/OAuth2 providers
   providers:
-    # Google Example
-    # - name: "Google"
-    #   client_id: "your-google-client-id.apps.googleusercontent.com"
-    #   client_secret: "your-google-client-secret"
-    #   discovery_url: "https://accounts.google.com/.well-known/openid-configuration"
-    #   scopes: ["openid", "email", "profile"]
-    #   email_claim: "email"
-    #   name_claim: "name"
+    # Google OAuth - configured for stormycloud.org domain
+    - name: "Google"
+      client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+      client_secret: "YOUR_GOOGLE_CLIENT_SECRET"
+      discovery_url: "https://accounts.google.com/.well-known/openid-configuration"
+      scopes: ["openid", "email", "profile"]
+      email_claim: "email"
+      name_claim: "name"
 
     # Microsoft/Azure AD Example
     # - name: "Microsoft"

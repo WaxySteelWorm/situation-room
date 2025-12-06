@@ -88,8 +88,11 @@ class CredentialService:
         # Derive key from master password
         key = self._derive_key(master_password, salt)
 
-        # Encrypt verification token
-        verification_token, _ = self._encrypt(VERIFICATION_PLAINTEXT, key)
+        # Encrypt verification token using first 12 bytes of salt as IV
+        # This ensures we can decrypt it later with the same IV
+        iv = salt[:12]
+        aesgcm = AESGCM(key)
+        verification_token = aesgcm.encrypt(iv, VERIFICATION_PLAINTEXT, None)
 
         # Store vault
         vault = UserVault(

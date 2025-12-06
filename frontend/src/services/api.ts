@@ -270,6 +270,49 @@ export const documentsApi = {
     request<{ message: string }>(`/documents/${id}`, { method: 'DELETE' }),
 };
 
+// Columns API
+export interface Column {
+  id: number;
+  name: string;
+  slug: string;
+  color: string;
+  position: number;
+}
+
+export const columnsApi = {
+  getAll: () =>
+    request<Column[]>('/columns'),
+
+  create: (column: {
+    name: string;
+    color?: string;
+    position?: number;
+  }) =>
+    request<Column>('/columns', {
+      method: 'POST',
+      body: JSON.stringify(column),
+    }),
+
+  update: (id: number, column: {
+    name?: string;
+    color?: string;
+    position?: number;
+  }) =>
+    request<Column>(`/columns/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(column),
+    }),
+
+  delete: (id: number) =>
+    request<{ message: string }>(`/columns/${id}`, { method: 'DELETE' }),
+
+  reorder: (columnIds: number[]) =>
+    request<Column[]>('/columns/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ column_ids: columnIds }),
+    }),
+};
+
 // Health API
 export const healthApi = {
   check: () =>

@@ -18,26 +18,36 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { tasksApi } from '../services/api';
+import { tasksApi, columnsApi, type Column } from '../services/api';
 import type { Task } from '../types';
 import KanbanColumn from '../components/KanbanColumn';
 import TaskCard from '../components/TaskCard';
 import TaskModal from '../components/TaskModal';
 import CreateTaskModal from '../components/CreateTaskModal';
-import { Plus } from 'lucide-react';
+import { Plus, Settings, X, Trash2 } from 'lucide-react';
 
-const COLUMNS = [
-  { id: 'todo', title: 'To Do', color: 'gray' },
-  { id: 'in_progress', title: 'In Progress', color: 'amber' },
-  { id: 'done', title: 'Done', color: 'green' },
-] as const;
+const COLUMN_COLORS = [
+  { name: 'Gray', value: 'gray' },
+  { name: 'Red', value: 'red' },
+  { name: 'Orange', value: 'orange' },
+  { name: 'Amber', value: 'amber' },
+  { name: 'Yellow', value: 'yellow' },
+  { name: 'Green', value: 'green' },
+  { name: 'Blue', value: 'blue' },
+  { name: 'Purple', value: 'purple' },
+  { name: 'Pink', value: 'pink' },
+];
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [columns, setColumns] = useState<Column[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isColumnSettingsOpen, setIsColumnSettingsOpen] = useState(false);
+  const [newColumnName, setNewColumnName] = useState('');
+  const [newColumnColor, setNewColumnColor] = useState('gray');
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -51,18 +61,74 @@ export default function TasksPage() {
   );
 
   useEffect(() => {
-    loadTasks();
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      const [tasksData, columnsData] = await Promise.all([
+        tasksApi.getAll(),
+        columnsApi.getAll(),
+      ]);
+      setTasks(tasksData);
+      setColumns(columnsData);
+    } catch (error) {
+      console.error('Failed to load data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const loadTasks = async () => {
     try {
-      setIsLoading(true);
       const data = await tasksApi.getAll();
       setTasks(data);
     } catch (error) {
       console.error('Failed to load tasks:', error);
-    } finally {
-      setIsLoading(false);
+    }
+  };
+
+  const loadColumns = async () => {
+    try {
+      const data = await columnsApi.getAll();
+      setColumns(data);
+    } catch (error) {
+      console.error('Failed to load columns:', error);
+    }
+  };
+
+  const handleAddColumn = async () => {
+    if (!newColumnName.trim()) return;
+    try {
+      await columnsApi.create({
+        name: newColumnName.trim(),
+        color: newColumnColor,
+      });
+      setNewColumnName('');
+      setNewColumnColor('gray');
+      loadColumns();
+    } catch (error) {
+      console.error('Failed to create column:', error);
+    }
+  };
+
+  const handleDeleteColumn = async (columnId: number) => {
+    if (!confirm('Delete this column? Tasks in this column will remain but may need to be moved.')) return;
+    try {
+      await columnsApi.delete(columnId);
+      loadColumns();
+    } catch (error) {
+      console.error('Failed to delete column:', error);
+    }
+  };
+
+  const handleUpdateColumnColor = async (columnId: number, color: string) => {
+    try {
+      await columnsApi.update(columnId, { color });
+      loadColumns();
+    } catch (error) {
+      console.error('Failed to update column:', error);
     }
   };
 
@@ -84,7 +150,7 @@ export default function TasksPage() {
 
     // Determine target column
     let targetColumn: string;
-    if (COLUMNS.some((col) => col.id === over.id)) {
+    if (columns.some((col) => col.slug === over.id)) {
       targetColumn = over.id as string;
     } else {
       const overTask = tasks.find((t) => t.id === over.id);
@@ -147,13 +213,13 @@ export default function TasksPage() {
     // First check if we're over a droppable column
     const pointerCollisions = pointerWithin(args);
     const columnCollision = pointerCollisions.find((collision) =>
-      COLUMNS.some((col) => col.id === collision.id)
+      columns.some((col) => col.slug === collision.id)
     );
 
     if (columnCollision) {
       // If over a column, also check for task collisions within that column
       const taskCollisions = rectIntersection(args).filter(
-        (collision) => !COLUMNS.some((col) => col.id === collision.id)
+        (collision) => !columns.some((col) => col.slug === collision.id)
       );
 
       if (taskCollisions.length > 0) {
@@ -178,13 +244,22 @@ export default function TasksPage() {
     <div className="p-6 h-full flex flex-col">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">Tasks</h1>
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-        >
-          <Plus size={18} />
-          New Task
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsColumnSettingsOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+            title="Column Settings"
+          >
+            <Settings size={18} />
+          </button>
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            <Plus size={18} />
+            New Task
+          </button>
+        </div>
       </div>
 
       <DndContext
@@ -194,13 +269,13 @@ export default function TasksPage() {
         onDragEnd={handleDragEnd}
       >
         <div className="flex-1 flex gap-4 overflow-x-auto pb-4">
-          {COLUMNS.map((column) => {
-            const columnTasks = getTasksByStatus(column.id);
+          {columns.map((column) => {
+            const columnTasks = getTasksByStatus(column.slug);
             return (
               <KanbanColumn
                 key={column.id}
-                id={column.id}
-                title={column.title}
+                id={column.slug}
+                title={column.name}
                 color={column.color}
                 count={columnTasks.length}
               >
@@ -239,6 +314,91 @@ export default function TasksPage() {
           onClose={() => setIsCreateModalOpen(false)}
           onCreated={handleTaskCreated}
         />
+      )}
+
+      {/* Column Settings Modal */}
+      {isColumnSettingsOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 rounded-xl w-full max-w-md border border-gray-800">
+            <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">Column Settings</h2>
+              <button
+                onClick={() => setIsColumnSettingsOpen(false)}
+                className="p-1 text-gray-400 hover:text-white rounded"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Existing columns */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-gray-400">Columns</h3>
+                {columns.map((column) => (
+                  <div
+                    key={column.id}
+                    className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg"
+                  >
+                    <span className="flex-1 text-white">{column.name}</span>
+                    <select
+                      value={column.color}
+                      onChange={(e) => handleUpdateColumnColor(column.id, e.target.value)}
+                      className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+                    >
+                      {COLUMN_COLORS.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    {columns.length > 1 && (
+                      <button
+                        onClick={() => handleDeleteColumn(column.id)}
+                        className="p-1 text-gray-400 hover:text-red-400 rounded"
+                        title="Delete column"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Add new column */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-gray-400">Add Column</h3>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newColumnName}
+                    onChange={(e) => setNewColumnName(e.target.value)}
+                    placeholder="Column name"
+                    className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddColumn()}
+                  />
+                  <select
+                    value={newColumnColor}
+                    onChange={(e) => setNewColumnColor(e.target.value)}
+                    className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-white"
+                  >
+                    {COLUMN_COLORS.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleAddColumn}
+                    disabled={!newColumnName.trim()}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white rounded-lg transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

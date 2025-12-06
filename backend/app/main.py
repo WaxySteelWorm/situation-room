@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import load_config
 from .models.database import init_db
 from .utils.logging import setup_logging
-from .routers import auth_router, tasks_router, credentials_router, dashboard_router, documents_router
+from .routers import auth_router, tasks_router, credentials_router, dashboard_router, documents_router, columns_router
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,7 @@ app.include_router(tasks_router)
 app.include_router(credentials_router)
 app.include_router(dashboard_router)
 app.include_router(documents_router)
+app.include_router(columns_router)
 
 
 # Health check endpoint

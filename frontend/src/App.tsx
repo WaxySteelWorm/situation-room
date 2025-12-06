@@ -6,6 +6,7 @@ import DashboardPage from './pages/DashboardPage';
 import TasksPage from './pages/TasksPage';
 import PasswordsPage from './pages/PasswordsPage';
 import DocumentsPage from './pages/DocumentsPage';
+import MonitoringPage from './pages/MonitoringPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -54,6 +55,7 @@ function App() {
         <Route path="tasks" element={<TasksPage />} />
         <Route path="passwords" element={<PasswordsPage />} />
         <Route path="documents" element={<DocumentsPage />} />
+        <Route path="monitoring" element={<MonitoringPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

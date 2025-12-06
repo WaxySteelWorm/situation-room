@@ -120,9 +120,41 @@ sso:
     #   email_claim: "email"
     #   name_claim: "name"
 
-# Feature Flags (for future extensibility)
+# Feature Flags
 features:
-  # Placeholder for v2 features
-  monitoring_enabled: false
+  monitoring_enabled: true
   ansible_enabled: false
   websocket_agents_enabled: false
+
+# Monitoring Module Configuration
+monitoring:
+  # Enable the monitoring module
+  enabled: true
+
+  # Path to MaxMind GeoLite2 City database (download from maxmind.com)
+  # The free GeoLite2 database requires registration at:
+  # https://www.maxmind.com/en/geolite2/signup
+  geoip_db_path: "/app/data/GeoLite2-City.mmdb"
+
+  # Shared API key for agent authentication
+  # Agents must use this key to connect via WebSocket
+  # Generate a strong random key for production
+  agent_api_key: "change-me-to-a-secure-random-string"
+
+  # Data retention settings
+  # Individual IP records are kept for this many days
+  raw_event_retention_days: 30
+  # After raw retention, data is aggregated by country/hour and kept for this many days
+  aggregate_retention_days: 365
+
+  # Agent status thresholds (in minutes)
+  # Agent marked as "stale" if not heard from within this time
+  agent_stale_threshold_minutes: 5
+  # Agent marked as "offline" if not heard from within this time
+  agent_offline_threshold_minutes: 15
+
+  # Prometheus integration for host metrics
+  prometheus:
+    enabled: false
+    # URL to your Prometheus server (internal network, no auth needed)
+    url: "http://prometheus:9090"

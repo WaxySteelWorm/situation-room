@@ -27,3 +27,8 @@ certbot==2.8.0
 
 # Utilities
 python-dateutil==2.8.2
+
+# Monitoring module
+websockets==12.0
+geoip2==4.8.0
+maxminddb==2.6.2

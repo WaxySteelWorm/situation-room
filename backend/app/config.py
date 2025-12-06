@@ -98,6 +98,30 @@ class FeaturesConfig(BaseModel):
     websocket_agents_enabled: bool = False
 
 
+class PrometheusConfig(BaseModel):
+    """Configuration for Prometheus integration."""
+    enabled: bool = False
+    url: str = "http://localhost:9090"
+    # No authentication by default (internal network)
+
+
+class MonitoringConfig(BaseModel):
+    """Configuration for the monitoring module."""
+    enabled: bool = False
+    # GeoIP database path (MaxMind GeoLite2)
+    geoip_db_path: str = "/app/data/GeoLite2-City.mmdb"
+    # Shared API key for agent authentication (agents use this to connect)
+    agent_api_key: str = "change-me-in-production"
+    # Data retention settings
+    raw_event_retention_days: int = 30
+    aggregate_retention_days: int = 365
+    # Agent timeout (mark as stale/offline)
+    agent_stale_threshold_minutes: int = 5
+    agent_offline_threshold_minutes: int = 15
+    # Prometheus integration
+    prometheus: PrometheusConfig = PrometheusConfig()
+
+
 class Config(BaseModel):
     server: ServerConfig = ServerConfig()
     https: HttpsConfig = HttpsConfig()
@@ -110,6 +134,7 @@ class Config(BaseModel):
     encryption: EncryptionConfig = EncryptionConfig()
     sso: SSOConfig = SSOConfig()
     features: FeaturesConfig = FeaturesConfig()
+    monitoring: MonitoringConfig = MonitoringConfig()
 
 
 _config: Optional[Config] = None
@@ -159,6 +184,20 @@ def load_config(config_path: Optional[str] = None) -> Config:
 
     if os.environ.get("SITUATION_ROOM_SMTP_PASSWORD"):
         config.smtp.password = os.environ["SITUATION_ROOM_SMTP_PASSWORD"]
+
+    # Monitoring configuration overrides
+    if os.environ.get("SITUATION_ROOM_MONITORING_ENABLED"):
+        config.monitoring.enabled = os.environ["SITUATION_ROOM_MONITORING_ENABLED"].lower() == "true"
+
+    if os.environ.get("SITUATION_ROOM_AGENT_API_KEY"):
+        config.monitoring.agent_api_key = os.environ["SITUATION_ROOM_AGENT_API_KEY"]
+
+    if os.environ.get("SITUATION_ROOM_GEOIP_DB_PATH"):
+        config.monitoring.geoip_db_path = os.environ["SITUATION_ROOM_GEOIP_DB_PATH"]
+
+    if os.environ.get("SITUATION_ROOM_PROMETHEUS_URL"):
+        config.monitoring.prometheus.url = os.environ["SITUATION_ROOM_PROMETHEUS_URL"]
+        config.monitoring.prometheus.enabled = True
 
     _config = config
     return config

@@ -11,16 +11,57 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import load_config
-from .models.database import init_db
+from .models.database import init_db, get_db
 from .utils.logging import setup_logging
-from .routers import auth_router, tasks_router, credentials_router, dashboard_router, documents_router, columns_router, uploads_router, users_router
+from .routers import auth_router, tasks_router, credentials_router, dashboard_router, documents_router, columns_router, uploads_router, users_router, monitoring_router
 
 logger = logging.getLogger(__name__)
+
+# Background task for monitoring data retention
+_retention_task: asyncio.Task | None = None
+
+
+async def monitoring_retention_task():
+    """Background task for data retention and cleanup."""
+    from .services.monitoring import MonitoringService
+
+    logger.info("Monitoring retention task started")
+
+    while True:
+        try:
+            # Run every hour
+            await asyncio.sleep(3600)
+
+            config = load_config()
+            if not config.monitoring.enabled:
+                continue
+
+            # Get a database session
+            async for db in get_db():
+                service = MonitoringService(db)
+
+                # Aggregate old events
+                aggregated = await service.aggregate_old_events()
+                if aggregated > 0:
+                    logger.info(f"Aggregated {aggregated} old threat events")
+
+                # Cleanup stale agents
+                stale = await service.cleanup_stale_agents()
+                if stale > 0:
+                    logger.info(f"Marked {stale} agents as offline")
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Retention task error: {e}")
+            await asyncio.sleep(60)  # Wait a bit before retrying
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
+    global _retention_task
+
     # Startup
     config = load_config()
     setup_logging()
@@ -35,10 +76,23 @@ async def lifespan(app: FastAPI):
     logger.info(f"Debug mode: {config.server.debug}")
     logger.info(f"Users configured: {len(config.users)}")
 
+    # Start monitoring background tasks if enabled
+    if config.monitoring.enabled:
+        logger.info("Monitoring module enabled")
+        _retention_task = asyncio.create_task(monitoring_retention_task())
+
     yield
 
     # Shutdown
     logger.info("Shutting down Situation Room...")
+
+    # Cancel background tasks
+    if _retention_task:
+        _retention_task.cancel()
+        try:
+            await _retention_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(
@@ -66,6 +120,7 @@ app.include_router(documents_router)
 app.include_router(columns_router)
 app.include_router(uploads_router)
 app.include_router(users_router)
+app.include_router(monitoring_router)
 
 
 # Health check endpoint

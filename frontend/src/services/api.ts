@@ -354,4 +354,80 @@ export const healthApi = {
     request<{ status: string; service: string }>('/health'),
 };
 
+// Monitoring API
+import type {
+  MonitoringStatus,
+  MonitoringAgent,
+  ThreatEvent,
+  ThreatSummary,
+  MapPoint,
+  HealthCheck,
+  HostMetrics,
+  MetricValue
+} from '../types';
+
+export const monitoringApi = {
+  // Status
+  getStatus: () =>
+    request<MonitoringStatus>('/monitoring/status'),
+
+  // Agents
+  getAgents: (includeInactive = false) =>
+    request<MonitoringAgent[]>(`/monitoring/agents?include_inactive=${includeInactive}`),
+
+  getConnectedAgents: () =>
+    request<Array<{
+      hostname: string;
+      ip_address: string;
+      connected_at: string;
+      last_message: string;
+    }>>('/monitoring/agents/connected'),
+
+  // Threats
+  getRecentThreats: (minutes = 60, limit = 1000) =>
+    request<ThreatEvent[]>(`/monitoring/threats/recent?minutes=${minutes}&limit=${limit}`),
+
+  getThreatSummary: (hours = 24) =>
+    request<ThreatSummary>(`/monitoring/threats/summary?hours=${hours}`),
+
+  getMapData: (minutes = 60) =>
+    request<MapPoint[]>(`/monitoring/threats/map?minutes=${minutes}`),
+
+  // Health Checks
+  getHealthChecks: (hostname?: string) =>
+    request<HealthCheck[]>(
+      hostname ? `/monitoring/health-checks?hostname=${hostname}` : '/monitoring/health-checks'
+    ),
+
+  // Prometheus
+  getPrometheusStatus: () =>
+    request<{ enabled: boolean; available: boolean; url: string | null }>('/monitoring/prometheus/status'),
+
+  getPrometheusHosts: () =>
+    request<{ hosts: string[] }>('/monitoring/prometheus/hosts'),
+
+  getHostMetrics: (instance: string) =>
+    request<HostMetrics>(`/monitoring/prometheus/metrics/${encodeURIComponent(instance)}`),
+
+  getAllHostMetrics: () =>
+    request<Array<{
+      hostname: string;
+      instance: string;
+      cpu_usage_percent: number | null;
+      memory_usage_percent: number | null;
+      disk_usage_percent: number | null;
+      network_rx_bytes_per_sec: number | null;
+      network_tx_bytes_per_sec: number | null;
+      uptime_seconds: number | null;
+      load_average_1m: number | null;
+    }>>('/monitoring/prometheus/metrics'),
+
+  getMetricHistory: (instance: string, metric: string, hours = 24) =>
+    request<{
+      instance: string;
+      metric: string;
+      values: MetricValue[];
+    }>(`/monitoring/prometheus/history/${encodeURIComponent(instance)}/${metric}?hours=${hours}`),
+};
+
 export { ApiError };

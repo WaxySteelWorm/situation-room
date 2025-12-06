@@ -6,6 +6,7 @@ from .credential import Credential, UserVault
 from .document import Document
 from .column import Column
 from .user import User
+from .monitoring import Agent, ThreatEvent, CountryAggregate, HealthCheck, AgentStatus
 
 __all__ = [
     "Base",
@@ -19,4 +20,9 @@ __all__ = [
     "Document",
     "Column",
     "User",
+    "Agent",
+    "ThreatEvent",
+    "CountryAggregate",
+    "HealthCheck",
+    "AgentStatus",
 ]

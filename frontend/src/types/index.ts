@@ -79,3 +79,91 @@ export interface VaultStatus {
   has_vault: boolean;
   is_unlocked: boolean;
 }
+
+// Monitoring types
+export interface MonitoringStatus {
+  enabled: boolean;
+  prometheus_available: boolean;
+  geoip_available: boolean;
+  connected_agents: number;
+  total_agents: number;
+}
+
+export interface MonitoringAgent {
+  id: number;
+  hostname: string;
+  ip_address: string;
+  version: string | null;
+  os_info: string | null;
+  status: 'online' | 'offline' | 'stale';
+  last_seen: string | null;
+  is_active: boolean;
+  report_interval_seconds: number;
+  created_at: string;
+}
+
+export interface ThreatEvent {
+  id: number;
+  agent_hostname: string;
+  source_ip: string;
+  source_port: number | null;
+  dest_ip: string | null;
+  dest_port: number | null;
+  protocol: string | null;
+  country_code: string | null;
+  country_name: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  city: string | null;
+  event_time: string;
+}
+
+export interface MapPoint {
+  lat: number;
+  lng: number;
+  count: number;
+  country_code: string | null;
+  country_name: string | null;
+}
+
+export interface ThreatSummary {
+  total_events: number;
+  unique_ips: number;
+  top_countries: Array<{ code: string; name: string; count: number }>;
+  top_ports: Array<{ port: number; count: number }>;
+  hourly_counts: Array<{ hour: string; count: number }>;
+  period: { start: string; end: string };
+}
+
+export interface HealthCheck {
+  hostname: string;
+  check_name: string;
+  check_type: string;
+  is_healthy: boolean;
+  latency_ms: number | null;
+  message: string | null;
+  check_time: string;
+}
+
+export interface HostMetrics {
+  hostname: string;
+  instance: string;
+  cpu_usage_percent: number | null;
+  memory_usage_percent: number | null;
+  memory_total_bytes: number | null;
+  memory_used_bytes: number | null;
+  disk_usage_percent: number | null;
+  disk_total_bytes: number | null;
+  disk_used_bytes: number | null;
+  network_rx_bytes_per_sec: number | null;
+  network_tx_bytes_per_sec: number | null;
+  uptime_seconds: number | null;
+  load_average_1m: number | null;
+  load_average_5m: number | null;
+  load_average_15m: number | null;
+}
+
+export interface MetricValue {
+  timestamp: string;
+  value: number;
+}

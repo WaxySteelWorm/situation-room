@@ -169,22 +169,37 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* System Health Placeholder */}
+        {/* System Health - Link to Monitoring */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Server size={20} className="text-gray-500" />
-            <h2 className="text-lg font-semibold text-gray-500">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Server size={20} className="text-green-400" />
               System Health
             </h2>
-            <span className="ml-auto text-xs bg-gray-800 text-gray-500 px-2 py-1 rounded">
-              Coming in v2
-            </span>
+            <Link
+              to="/monitoring"
+              className="text-sm text-blue-400 hover:text-blue-300"
+            >
+              View all
+            </Link>
           </div>
-          <div className="text-center py-8 text-gray-600">
-            <Server size={40} className="mx-auto mb-3 opacity-50" />
-            <p className="text-sm">
-              Prometheus integration and system metrics will be available in v2
-            </p>
+          <div className="text-center py-6">
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <div className="text-center">
+                <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-2">
+                  <Server size={24} className="text-green-400" />
+                </div>
+                <p className="text-sm text-gray-400">Monitoring</p>
+                <p className="text-xs text-green-400">Active</p>
+              </div>
+            </div>
+            <Link
+              to="/monitoring"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors text-sm"
+            >
+              <Activity size={16} />
+              Open Monitoring Dashboard
+            </Link>
           </div>
         </div>
 

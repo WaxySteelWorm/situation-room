@@ -1,0 +1,68 @@
+# Situation Room Agent Configuration
+# Copy this file to /etc/situation-room/agent.yml and modify as needed
+
+# Server connection settings
+server:
+  # WebSocket URL for the Situation Room server
+  url: wss://your-situation-room-server.example.com/api/monitoring/ws/agent
+
+  # API key for authentication (must match server configuration)
+  api_key: your-api-key-here
+
+  # Verify SSL certificate (set to false for self-signed certs)
+  verify_ssl: true
+
+# Agent identification
+agent:
+  # Hostname to identify this agent (defaults to system hostname)
+  # hostname: my-server-01
+
+  # How often to send reports (in seconds)
+  report_interval_seconds: 60
+
+# UFW log collection
+ufw:
+  # Enable UFW log collection
+  enabled: true
+
+  # Path to UFW log file
+  log_path: /var/log/ufw.log
+
+# Health checks
+health_checks:
+  # Enable health checks
+  enabled: true
+
+  # List of checks to run
+  checks:
+    # Disk usage check
+    - name: disk_root
+      type: disk
+      path: /
+
+    # Memory usage check
+    - name: memory
+      type: memory
+
+    # System load check
+    - name: load
+      type: load
+
+    # Internet connectivity check
+    - name: internet
+      type: connectivity
+      host: 8.8.8.8
+      port: 53
+      timeout: 5.0
+
+    # Custom DNS server check (example)
+    # - name: dns_server
+    #   type: connectivity
+    #   host: 1.1.1.1
+    #   port: 53
+
+    # Custom command check (example)
+    # - name: nginx_status
+    #   type: custom
+    #   command: systemctl is-active nginx
+    #   timeout: 10.0

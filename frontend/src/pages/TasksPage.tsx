@@ -24,7 +24,7 @@ import KanbanColumn from '../components/KanbanColumn';
 import TaskCard from '../components/TaskCard';
 import TaskModal from '../components/TaskModal';
 import CreateTaskModal from '../components/CreateTaskModal';
-import { Plus, Settings, X, Trash2 } from 'lucide-react';
+import { Plus, Settings, X, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 
 const COLUMN_COLORS = [
   { name: 'Gray', value: 'gray' },
@@ -129,6 +129,30 @@ export default function TasksPage() {
       loadColumns();
     } catch (error) {
       console.error('Failed to update column:', error);
+    }
+  };
+
+  const handleMoveColumn = async (columnId: number, direction: 'up' | 'down') => {
+    const currentIndex = columns.findIndex((c) => c.id === columnId);
+    if (currentIndex === -1) return;
+
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= columns.length) return;
+
+    // Create new order
+    const newOrder = [...columns];
+    const [moved] = newOrder.splice(currentIndex, 1);
+    newOrder.splice(newIndex, 0, moved);
+
+    // Optimistic update
+    setColumns(newOrder);
+
+    try {
+      await columnsApi.reorder(newOrder.map((c) => c.id));
+      loadColumns();
+    } catch (error) {
+      console.error('Failed to reorder columns:', error);
+      loadColumns();
     }
   };
 
@@ -334,11 +358,29 @@ export default function TasksPage() {
               {/* Existing columns */}
               <div className="space-y-2">
                 <h3 className="text-sm font-medium text-gray-400">Columns</h3>
-                {columns.map((column) => (
+                {columns.map((column, index) => (
                   <div
                     key={column.id}
-                    className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg"
+                    className="flex items-center gap-2 p-2 bg-gray-800 rounded-lg"
                   >
+                    <div className="flex flex-col">
+                      <button
+                        onClick={() => handleMoveColumn(column.id, 'up')}
+                        disabled={index === 0}
+                        className="p-0.5 text-gray-400 hover:text-white disabled:text-gray-600 disabled:cursor-not-allowed"
+                        title="Move up"
+                      >
+                        <ChevronUp size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleMoveColumn(column.id, 'down')}
+                        disabled={index === columns.length - 1}
+                        className="p-0.5 text-gray-400 hover:text-white disabled:text-gray-600 disabled:cursor-not-allowed"
+                        title="Move down"
+                      >
+                        <ChevronDown size={14} />
+                      </button>
+                    </div>
                     <span className="flex-1 text-white">{column.name}</span>
                     <select
                       value={column.color}

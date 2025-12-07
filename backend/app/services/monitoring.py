@@ -277,7 +277,7 @@ class MonitoringService:
         """
         Get threat data formatted for map visualization.
 
-        Returns list of points with lat/lng and count.
+        Returns list of points with lat/lng and count, aggregated by country.
         """
         if use_aggregates:
             # Use aggregated data for historical views
@@ -286,46 +286,43 @@ class MonitoringService:
                 select(
                     CountryAggregate.country_code,
                     CountryAggregate.country_name,
-                    CountryAggregate.latitude,
-                    CountryAggregate.longitude,
+                    func.avg(CountryAggregate.latitude).label('latitude'),
+                    func.avg(CountryAggregate.longitude).label('longitude'),
                     func.sum(CountryAggregate.event_count).label('count')
                 )
                 .where(CountryAggregate.hour_bucket >= since)
                 .group_by(
                     CountryAggregate.country_code,
-                    CountryAggregate.country_name,
-                    CountryAggregate.latitude,
-                    CountryAggregate.longitude
+                    CountryAggregate.country_name
                 )
             )
         else:
-            # Use raw events for recent data
+            # Use raw events for recent data - aggregate by country only
             since = datetime.utcnow() - timedelta(minutes=minutes)
             result = await self.db.execute(
                 select(
                     ThreatEvent.country_code,
                     ThreatEvent.country_name,
-                    ThreatEvent.latitude,
-                    ThreatEvent.longitude,
+                    func.avg(ThreatEvent.latitude).label('latitude'),
+                    func.avg(ThreatEvent.longitude).label('longitude'),
                     func.count(ThreatEvent.id).label('count')
                 )
                 .where(ThreatEvent.event_time >= since)
                 .where(ThreatEvent.latitude.isnot(None))
                 .where(ThreatEvent.longitude.isnot(None))
+                .where(ThreatEvent.country_code.isnot(None))
                 .group_by(
                     ThreatEvent.country_code,
-                    ThreatEvent.country_name,
-                    ThreatEvent.latitude,
-                    ThreatEvent.longitude
+                    ThreatEvent.country_name
                 )
             )
 
         points = []
         for row in result:
-            if row.latitude and row.longitude:
+            if row.latitude and row.longitude and row.country_code:
                 points.append({
-                    "lat": row.latitude,
-                    "lng": row.longitude,
+                    "lat": float(row.latitude),
+                    "lng": float(row.longitude),
                     "count": row.count,
                     "country_code": row.country_code,
                     "country_name": row.country_name

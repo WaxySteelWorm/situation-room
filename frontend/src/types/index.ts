@@ -167,3 +167,131 @@ export interface MetricValue {
   timestamp: string;
   value: number;
 }
+
+// Network Monitoring Types
+
+export interface NetworkStatus {
+  enabled: boolean;
+  cloudflare_radar_available: boolean;
+  observium_available: boolean;
+  asn: number;
+  monitored_interfaces: string[];
+}
+
+export interface BGPEvent {
+  id: number;
+  event_type: string;
+  asn: number;
+  prefix: string | null;
+  as_path: string | null;
+  origin_asn: number | null;
+  peer_asn: number | null;
+  peer_name: string | null;
+  peer_state: string | null;
+  description: string | null;
+  severity: string | null;
+  event_time: string;
+  alert_sent: boolean;
+}
+
+export interface BGPPrefixStatus {
+  id: number;
+  asn: number;
+  prefix: string;
+  is_visible: boolean;
+  visibility_count: number | null;
+  as_path: string | null;
+  origin_asn: number | null;
+  first_seen: string;
+  last_seen: string;
+}
+
+export interface BGPSummary {
+  asn: number;
+  prefix_count: number;
+  prefixes: Array<{
+    prefix: string;
+    is_visible: boolean;
+    first_seen: string | null;
+    last_seen: string | null;
+  }>;
+  recent_events_24h: number;
+  event_counts: Record<string, number>;
+  api_overview: Record<string, unknown> | null;
+}
+
+export interface TrafficSample {
+  id: number;
+  interface_name: string;
+  device_hostname: string | null;
+  traffic_in: number;
+  traffic_out: number;
+  interface_speed: number | null;
+  utilization_in: number | null;
+  utilization_out: number | null;
+  sample_time: string;
+}
+
+export interface DailyTrafficSummary {
+  id: number;
+  interface_name: string;
+  device_hostname: string | null;
+  date: string;
+  total_in_bytes: number;
+  total_out_bytes: number;
+  peak_in: number | null;
+  peak_out: number | null;
+  avg_in: number | null;
+  avg_out: number | null;
+  sample_count: number;
+}
+
+export interface InterfaceStats {
+  interface_name: string;
+  port_id: number | null;
+  ifSpeed: number | null;
+  ifOperStatus: string | null;
+  ifAdminStatus: string | null;
+  ifInOctets_rate: number | null;
+  ifOutOctets_rate: number | null;
+  ifInOctets_perc: number | null;
+  ifOutOctets_perc: number | null;
+  last_sample_time: string | null;
+  device_hostname: string | null;
+  error: string | null;
+}
+
+export interface TrafficSummary {
+  interfaces: InterfaceStats[];
+  daily_totals: Array<{
+    interface_name: string;
+    total_in_bytes: number;
+    total_out_bytes: number;
+    peak_in: number | null;
+    peak_out: number | null;
+    sample_count: number;
+  }>;
+  active_alerts: number;
+  monitoring_interfaces: string[];
+}
+
+export interface ObserviumAlert {
+  id: number;
+  observium_alert_id: number | null;
+  device_hostname: string | null;
+  entity_type: string | null;
+  entity_name: string | null;
+  alert_status: string;
+  severity: string | null;
+  message: string | null;
+  alert_time: string;
+  resolved_time: string | null;
+}
+
+export interface TrafficGraphData {
+  timestamp: string;
+  traffic_in: number;
+  traffic_out: number;
+  utilization_in: number | null;
+  utilization_out: number | null;
+}

@@ -9,6 +9,7 @@ from .columns import router as columns_router
 from .uploads import router as uploads_router
 from .users import router as users_router
 from .monitoring import router as monitoring_router
+from .network import router as network_router
 
 __all__ = [
     "auth_router",
@@ -20,4 +21,5 @@ __all__ = [
     "uploads_router",
     "users_router",
     "monitoring_router",
+    "network_router",
 ]

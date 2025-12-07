@@ -8,6 +8,7 @@ import {
   LogOut,
   Server,
   Cpu,
+  Network,
 } from 'lucide-react';
 
 export default function Layout() {
@@ -25,6 +26,7 @@ export default function Layout() {
     { to: '/passwords', icon: Key, label: 'Passwords' },
     { to: '/documents', icon: FileText, label: 'Documents' },
     { to: '/monitoring', icon: Server, label: 'Monitoring' },
+    { to: '/network', icon: Network, label: 'Network' },
     // Placeholder for v2
     { to: '#', icon: Cpu, label: 'Automation', disabled: true },
   ];

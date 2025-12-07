@@ -158,3 +158,33 @@ monitoring:
     enabled: false
     # URL to your Prometheus server (internal network, no auth needed)
     url: "http://prometheus:9090"
+
+# Network Monitoring Module Configuration
+# BGP visibility via Cloudflare Radar and traffic stats via Observium
+network:
+  # Enable the network monitoring module
+  enabled: true
+
+  # Cloudflare Radar BGP Monitoring
+  # Provides BGP visibility, route changes, and anomaly detection
+  cloudflare_radar:
+    enabled: true
+    # Your Autonomous System Number (ASN)
+    asn: 400226
+    # How often to check for BGP updates (in minutes)
+    check_interval_minutes: 15
+    # API key must be set via CLOUDFLARE_RADAR_API_KEY environment variable
+    # Do NOT store the API key in this config file
+
+  # Observium Traffic Monitoring
+  # Provides interface traffic stats and alerts
+  observium:
+    enabled: true
+    # Observium API URL (internal network)
+    url: "http://172.16.1.110/api/v0"
+    # Basic auth credentials for Observium API
+    username: "admin"
+    password: "admin"
+    # List of interface names to monitor (e.g., WAN uplinks)
+    interfaces:
+      - "eth5"

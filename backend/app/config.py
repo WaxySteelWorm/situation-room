@@ -105,6 +105,30 @@ class PrometheusConfig(BaseModel):
     # No authentication by default (internal network)
 
 
+class CloudflareRadarConfig(BaseModel):
+    """Configuration for Cloudflare Radar BGP monitoring."""
+    enabled: bool = False
+    asn: int = 0  # Your AS number
+    check_interval_minutes: int = 15
+    # API key should be set via CLOUDFLARE_RADAR_API_KEY env var
+
+
+class ObserviumConfig(BaseModel):
+    """Configuration for Observium traffic monitoring."""
+    enabled: bool = False
+    url: str = "http://localhost/api/v0"
+    username: str = "admin"
+    password: str = "admin"
+    interfaces: list[str] = []  # List of interface names to monitor (e.g., ["eth5"])
+
+
+class NetworkConfig(BaseModel):
+    """Configuration for network monitoring (BGP + Traffic)."""
+    enabled: bool = False
+    cloudflare_radar: CloudflareRadarConfig = CloudflareRadarConfig()
+    observium: ObserviumConfig = ObserviumConfig()
+
+
 class MonitoringConfig(BaseModel):
     """Configuration for the monitoring module."""
     enabled: bool = False
@@ -135,6 +159,7 @@ class Config(BaseModel):
     sso: SSOConfig = SSOConfig()
     features: FeaturesConfig = FeaturesConfig()
     monitoring: MonitoringConfig = MonitoringConfig()
+    network: NetworkConfig = NetworkConfig()
 
 
 _config: Optional[Config] = None
@@ -199,6 +224,14 @@ def load_config(config_path: Optional[str] = None) -> Config:
         config.monitoring.prometheus.url = os.environ["SITUATION_ROOM_PROMETHEUS_URL"]
         config.monitoring.prometheus.enabled = True
 
+    # Network monitoring configuration overrides
+    if os.environ.get("SITUATION_ROOM_NETWORK_ENABLED"):
+        config.network.enabled = os.environ["SITUATION_ROOM_NETWORK_ENABLED"].lower() == "true"
+
+    # Auto-enable Cloudflare Radar if API key is set
+    if os.environ.get("CLOUDFLARE_RADAR_API_KEY"):
+        config.network.cloudflare_radar.enabled = True
+
     _config = config
     return config
 
@@ -209,3 +242,15 @@ def get_config() -> Config:
     if _config is None:
         return load_config()
     return _config
+
+
+# Store the Cloudflare API key separately (not in Pydantic model)
+_cloudflare_radar_api_key: Optional[str] = None
+
+
+def get_cloudflare_radar_api_key() -> Optional[str]:
+    """Get the Cloudflare Radar API key from environment."""
+    global _cloudflare_radar_api_key
+    if _cloudflare_radar_api_key is None:
+        _cloudflare_radar_api_key = os.environ.get("CLOUDFLARE_RADAR_API_KEY")
+    return _cloudflare_radar_api_key

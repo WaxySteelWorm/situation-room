@@ -10,6 +10,7 @@ import {
   Server,
   Cpu,
   Settings,
+  Activity,
 } from 'lucide-react';
 
 export default function Layout() {
@@ -28,6 +29,7 @@ export default function Layout() {
     { to: '/documents', icon: FileText, label: 'Documents' },
     { to: '/drive', icon: HardDrive, label: 'Files' },
     { to: '/monitoring', icon: Server, label: 'Monitoring' },
+    { to: '/service-checks', icon: Activity, label: 'Service Checks' },
     { to: '/settings', icon: Settings, label: 'Settings' },
     // Placeholder for v2
     { to: '#', icon: Cpu, label: 'Automation', disabled: true },

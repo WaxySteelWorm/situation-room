@@ -10,6 +10,7 @@ from .uploads import router as uploads_router
 from .users import router as users_router
 from .monitoring import router as monitoring_router
 from .google_drive import router as google_drive_router
+from .service_checks import router as service_checks_router
 
 __all__ = [
     "auth_router",
@@ -22,4 +23,5 @@ __all__ = [
     "users_router",
     "monitoring_router",
     "google_drive_router",
+    "service_checks_router",
 ]

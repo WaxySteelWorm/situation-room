@@ -9,6 +9,7 @@ import DocumentsPage from './pages/DocumentsPage';
 import DrivePage from './pages/DrivePage';
 import MonitoringPage from './pages/MonitoringPage';
 import SettingsPage from './pages/SettingsPage';
+import ServiceChecksPage from './pages/ServiceChecksPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -60,6 +61,8 @@ function App() {
         <Route path="drive" element={<DrivePage />} />
         <Route path="monitoring" element={<MonitoringPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="service-checks" element={<ServiceChecksPage />} />
+        <Route path="service-checks/:checkId" element={<ServiceChecksPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

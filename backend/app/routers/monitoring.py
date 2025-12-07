@@ -13,6 +13,7 @@ from ..config import get_config
 from ..models.database import get_db
 from ..services.auth import Session
 from ..services.monitoring import MonitoringService
+from ..services.service_check import ServiceCheckService
 from ..services.prometheus import get_prometheus_service
 from ..services.websocket_manager import get_websocket_manager, WebSocketManager
 from .auth import get_current_session
@@ -492,6 +493,29 @@ async def agent_websocket(
                         message=check.get("message"),
                         details=json.dumps(check.get("details")) if check.get("details") else None
                     )
+
+                await monitoring_service.update_agent_status(hostname)
+
+            elif msg_type == "service_check_result":
+                # Process service check results
+                results = data.get("results", [])
+                service_check_service = ServiceCheckService(db)
+                now = datetime.utcnow()
+
+                for result in results:
+                    try:
+                        await service_check_service.record_result(
+                            check_id=result.get("check_id"),
+                            agent_hostname=hostname,
+                            is_success=result.get("is_success", False),
+                            check_time=now,
+                            latency_ms=result.get("latency_ms"),
+                            status_code=result.get("status_code"),
+                            response_body=result.get("response_body"),
+                            error_message=result.get("error_message"),
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to record service check result: {e}")
 
                 await monitoring_service.update_agent_status(hostname)
 

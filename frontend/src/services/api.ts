@@ -663,4 +663,75 @@ export const driveApi = {
     request<{ message: string }>(`/drive/files/${fileId}`, { method: 'DELETE' }),
 };
 
+// Service Checks API
+import type {
+  ServiceCheck,
+  ServiceCheckResult,
+  ServiceCheckCreate,
+  ServiceCheckUpdate,
+  ServiceCheckSummary,
+  UptimeStats,
+  DailyUptime,
+  AvailableAgent,
+  CheckTypeInfo
+} from '../types';
+
+export const serviceChecksApi = {
+  // CRUD operations
+  getAll: (includeDisabled = false) =>
+    request<ServiceCheck[]>(`/service-checks?include_disabled=${includeDisabled}`),
+
+  get: (id: number) =>
+    request<ServiceCheck>(`/service-checks/${id}`),
+
+  create: (check: ServiceCheckCreate) =>
+    request<ServiceCheck>('/service-checks', {
+      method: 'POST',
+      body: JSON.stringify(check),
+    }),
+
+  update: (id: number, check: ServiceCheckUpdate) =>
+    request<ServiceCheck>(`/service-checks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(check),
+    }),
+
+  delete: (id: number) =>
+    request<{ message: string }>(`/service-checks/${id}`, { method: 'DELETE' }),
+
+  // Status operations
+  enable: (id: number) =>
+    request<{ message: string; is_enabled: boolean }>(`/service-checks/${id}/enable`, {
+      method: 'POST',
+    }),
+
+  disable: (id: number) =>
+    request<{ message: string; is_enabled: boolean }>(`/service-checks/${id}/disable`, {
+      method: 'POST',
+    }),
+
+  runNow: (id: number) =>
+    request<{ message: string }>(`/service-checks/${id}/run`, { method: 'POST' }),
+
+  // Summary and metadata
+  getSummary: () =>
+    request<ServiceCheckSummary>('/service-checks/summary'),
+
+  getTypes: () =>
+    request<{ types: CheckTypeInfo[] }>('/service-checks/types'),
+
+  getAvailableAgents: () =>
+    request<{ agents: AvailableAgent[] }>('/service-checks/agents'),
+
+  // Results and history
+  getResults: (id: number, limit = 100) =>
+    request<ServiceCheckResult[]>(`/service-checks/${id}/results?limit=${limit}`),
+
+  getUptime: (id: number) =>
+    request<Record<string, UptimeStats>>(`/service-checks/${id}/uptime`),
+
+  getHistory: (id: number, days = 90) =>
+    request<DailyUptime[]>(`/service-checks/${id}/history?days=${days}`),
+};
+
 export { ApiError };

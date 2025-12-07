@@ -8,6 +8,13 @@ from .column import Column
 from .user import User
 from .monitoring import Agent, ThreatEvent, CountryAggregate, HealthCheck, AgentStatus
 from .alerts import AlertRule, AlertHistory, AlertSettings, AlertSeverity, AlertType, NotificationChannel
+from .service_check import (
+    ServiceCheck,
+    ServiceCheckResult,
+    ServiceCheckAlert,
+    ServiceCheckType,
+    ServiceCheckStatus,
+)
 
 __all__ = [
     "Base",
@@ -32,4 +39,9 @@ __all__ = [
     "AlertSeverity",
     "AlertType",
     "NotificationChannel",
+    "ServiceCheck",
+    "ServiceCheckResult",
+    "ServiceCheckAlert",
+    "ServiceCheckType",
+    "ServiceCheckStatus",
 ]

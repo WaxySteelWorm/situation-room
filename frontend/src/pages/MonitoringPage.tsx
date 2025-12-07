@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { monitoringApi } from '../services/api';
-import type { MonitoringStatus, ThreatSummary, MapPoint, MonitoringAgent } from '../types';
+import { useNavigate } from 'react-router-dom';
+import { monitoringApi, serviceChecksApi } from '../services/api';
+import type { MonitoringStatus, ThreatSummary, MapPoint, MonitoringAgent, ServiceCheckSummary } from '../types';
 import ThreatMap from '../components/monitoring/ThreatMap';
 import HostMetrics from '../components/monitoring/HostMetrics';
 import {
@@ -14,13 +15,17 @@ import {
   ChevronRight,
   Wifi,
   WifiOff,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 
 export default function MonitoringPage() {
+  const navigate = useNavigate();
   const [status, setStatus] = useState<MonitoringStatus | null>(null);
   const [summary, setSummary] = useState<ThreatSummary | null>(null);
   const [mapPoints, setMapPoints] = useState<MapPoint[]>([]);
   const [agents, setAgents] = useState<MonitoringAgent[]>([]);
+  const [serviceCheckSummary, setServiceCheckSummary] = useState<ServiceCheckSummary | null>(null);
   const [timeWindow, setTimeWindow] = useState(60); // minutes
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'threats' | 'hosts' | 'agents'>('threats');
@@ -37,17 +42,19 @@ export default function MonitoringPage() {
       setIsLoading(true);
       setError(null);
 
-      const [statusData, summaryData, mapData, agentsData] = await Promise.all([
+      const [statusData, summaryData, mapData, agentsData, serviceCheckData] = await Promise.all([
         monitoringApi.getStatus(),
         monitoringApi.getThreatSummary(Math.ceil(timeWindow / 60)),
         monitoringApi.getMapData(timeWindow),
         monitoringApi.getAgents(),
+        serviceChecksApi.getSummary().catch(() => null),
       ]);
 
       setStatus(statusData);
       setSummary(summaryData);
       setMapPoints(mapData);
       setAgents(agentsData);
+      setServiceCheckSummary(serviceCheckData);
     } catch (err) {
       console.error('Failed to load monitoring data:', err);
       setError('Failed to load monitoring data');
@@ -103,7 +110,7 @@ export default function MonitoringPage() {
       </div>
 
       {/* Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatusCard
           icon={AlertTriangle}
           label="Blocked Attacks"
@@ -125,6 +132,35 @@ export default function MonitoringPage() {
           sublabel="Connected / Total"
           color="green"
         />
+        {/* Service Checks Summary */}
+        <div
+          onClick={() => navigate('/service-checks')}
+          className="bg-gray-900 rounded-xl border border-gray-800 p-4 cursor-pointer hover:border-gray-700 transition-colors"
+        >
+          <div className="flex items-start gap-3">
+            <div className={`p-2 rounded-lg ${
+              serviceCheckSummary?.failing
+                ? 'bg-red-400/10 text-red-400'
+                : 'bg-green-400/10 text-green-400'
+            }`}>
+              {serviceCheckSummary?.failing ? <XCircle size={20} /> : <CheckCircle size={20} />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-2xl font-bold text-white">
+                {serviceCheckSummary
+                  ? `${serviceCheckSummary.passing}/${serviceCheckSummary.total}`
+                  : '—'}
+              </p>
+              <p className="text-sm text-gray-500">Service Checks</p>
+              {serviceCheckSummary?.failing ? (
+                <p className="text-xs text-red-400 mt-1">{serviceCheckSummary.failing} failing</p>
+              ) : (
+                <p className="text-xs text-green-400 mt-1">All passing</p>
+              )}
+            </div>
+            <ChevronRight size={16} className="text-gray-600" />
+          </div>
+        </div>
         <StatusCard
           icon={Activity}
           label="Prometheus"

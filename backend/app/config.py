@@ -122,6 +122,21 @@ class MonitoringConfig(BaseModel):
     prometheus: PrometheusConfig = PrometheusConfig()
 
 
+class SharedDriveConfig(BaseModel):
+    """Configuration for a Google Drive shared drive."""
+    id: str  # The shared drive ID
+    name: str  # Display name for the drive
+
+
+class GoogleDriveConfig(BaseModel):
+    """Configuration for Google Drive integration."""
+    enabled: bool = False
+    # Path to service account credentials JSON file
+    service_account_path: str = "/app/data/google-service-account.json"
+    # List of shared drives to connect to
+    shared_drives: list[SharedDriveConfig] = []
+
+
 class Config(BaseModel):
     server: ServerConfig = ServerConfig()
     https: HttpsConfig = HttpsConfig()
@@ -135,6 +150,7 @@ class Config(BaseModel):
     sso: SSOConfig = SSOConfig()
     features: FeaturesConfig = FeaturesConfig()
     monitoring: MonitoringConfig = MonitoringConfig()
+    google_drive: GoogleDriveConfig = GoogleDriveConfig()
 
 
 _config: Optional[Config] = None
@@ -198,6 +214,13 @@ def load_config(config_path: Optional[str] = None) -> Config:
     if os.environ.get("SITUATION_ROOM_PROMETHEUS_URL"):
         config.monitoring.prometheus.url = os.environ["SITUATION_ROOM_PROMETHEUS_URL"]
         config.monitoring.prometheus.enabled = True
+
+    # Google Drive configuration overrides
+    if os.environ.get("SITUATION_ROOM_GOOGLE_DRIVE_ENABLED"):
+        config.google_drive.enabled = os.environ["SITUATION_ROOM_GOOGLE_DRIVE_ENABLED"].lower() == "true"
+
+    if os.environ.get("SITUATION_ROOM_GOOGLE_DRIVE_SERVICE_ACCOUNT_PATH"):
+        config.google_drive.service_account_path = os.environ["SITUATION_ROOM_GOOGLE_DRIVE_SERVICE_ACCOUNT_PATH"]
 
     _config = config
     return config

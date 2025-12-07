@@ -158,3 +158,22 @@ monitoring:
     enabled: false
     # URL to your Prometheus server (internal network, no auth needed)
     url: "http://prometheus:9090"
+
+# Google Drive Integration
+# Provides file browser for shared company drives
+google_drive:
+  # Enable Google Drive integration
+  enabled: false
+
+  # Path to Google Cloud service account credentials JSON file
+  # Download from Google Cloud Console > IAM & Admin > Service Accounts
+  # Make sure the service account has access to the shared drives
+  service_account_path: "/app/data/google-service-account.json"
+
+  # Shared drives to display in the file browser
+  # Get the drive ID from the shared drive URL: https://drive.google.com/drive/folders/{DRIVE_ID}
+  shared_drives:
+    - id: "0ABCdefGHIjklMNOpqrs"
+      name: "Company Documents"
+    - id: "0ABCdefGHIjklMNOpqrt"
+      name: "Engineering Files"

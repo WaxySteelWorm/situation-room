@@ -167,3 +167,37 @@ export interface MetricValue {
   timestamp: string;
   value: number;
 }
+
+// Google Drive types
+export interface DriveStatus {
+  enabled: boolean;
+  drives_count: number;
+}
+
+export interface SharedDrive {
+  id: string;
+  name: string;
+}
+
+export interface DriveFile {
+  id: string;
+  name: string;
+  mime_type: string;
+  size: number | null;
+  modified_time: string;
+  modified_by: string | null;
+  is_folder: boolean;
+  parent_id: string | null;
+  web_view_link: string | null;
+  thumbnail_link: string | null;
+}
+
+export interface FileListResponse {
+  files: DriveFile[];
+  next_page_token: string | null;
+}
+
+export interface BreadcrumbItem {
+  id: string;
+  name: string;
+}

@@ -55,6 +55,9 @@ async def service_check_scheduler_task():
                 service = ServiceCheckService(db)
                 assignments = await service.get_check_assignments()
 
+                if assignments:
+                    logger.info(f"Service check assignments: {list(assignments.keys())}")
+
                 for agent_key, checks in assignments.items():
                     if not checks:
                         continue
@@ -65,6 +68,7 @@ async def service_check_scheduler_task():
                             if connected_agents:
                                 agent = connected_agents[round_robin_index % len(connected_agents)]
                                 round_robin_index += 1
+                                logger.info(f"Dispatching check '{check['name']}' to agent {agent['hostname']}")
                                 await ws_manager.send_to_agent(
                                     agent['hostname'],
                                     {'type': 'service_check', 'checks': [check]}
@@ -72,6 +76,7 @@ async def service_check_scheduler_task():
                     else:
                         # Specific agent assignment
                         if ws_manager.is_agent_connected(agent_key):
+                            logger.info(f"Dispatching {len(checks)} checks to agent {agent_key}")
                             await ws_manager.send_to_agent(
                                 agent_key,
                                 {'type': 'service_check', 'checks': checks}

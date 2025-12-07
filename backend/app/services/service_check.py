@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from sqlalchemy import delete, func, select, and_
+from sqlalchemy import delete, func, select, and_, Integer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import (

@@ -430,6 +430,7 @@ export const monitoringApi = {
     }>(`/monitoring/prometheus/history/${encodeURIComponent(instance)}/${metric}?hours=${hours}`),
 };
 
+<<<<<<< HEAD
 // Alerts API
 export interface AlertSettings {
   alerts_enabled: boolean;
@@ -576,6 +577,88 @@ export const alertsApi = {
     request<{ status: string; channel: string }>(`/alerts/test?channel=${channel}`, {
       method: 'POST',
     }),
+};
+
+// Google Drive API
+import type {
+  DriveStatus,
+  SharedDrive,
+  DriveFile,
+  FileListResponse,
+  BreadcrumbItem,
+} from '../types';
+
+export const driveApi = {
+  // Status
+  getStatus: () =>
+    request<DriveStatus>('/drive/status'),
+
+  // Drives
+  getDrives: () =>
+    request<SharedDrive[]>('/drive/drives'),
+
+  // Files
+  listFiles: (driveId: string, folderId?: string, pageToken?: string, pageSize = 100, orderBy = 'folder,name') => {
+    const params = new URLSearchParams();
+    if (folderId) params.append('folder_id', folderId);
+    if (pageToken) params.append('page_token', pageToken);
+    params.append('page_size', String(pageSize));
+    params.append('order_by', orderBy);
+    return request<FileListResponse>(`/drive/${driveId}/files?${params.toString()}`);
+  },
+
+  searchFiles: (driveId: string, query: string, pageSize = 50) =>
+    request<DriveFile[]>(`/drive/${driveId}/search?q=${encodeURIComponent(query)}&page_size=${pageSize}`),
+
+  getBreadcrumbs: (driveId: string, folderId?: string) => {
+    const params = folderId ? `?folder_id=${folderId}` : '';
+    return request<BreadcrumbItem[]>(`/drive/${driveId}/breadcrumbs${params}`);
+  },
+
+  getFile: (fileId: string) =>
+    request<DriveFile>(`/drive/files/${fileId}`),
+
+  downloadFile: (fileId: string) =>
+    `/api/drive/files/${fileId}/download`,
+
+  uploadFile: async (driveId: string, parentId: string, file: File): Promise<DriveFile> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`/api/drive/${driveId}/upload?parent_id=${parentId}`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({ detail: 'Upload failed' }));
+      throw new ApiError(response.status, data.detail || 'Upload failed');
+    }
+
+    return response.json();
+  },
+
+  createFolder: (driveId: string, parentId: string, name: string) =>
+    request<DriveFile>(`/drive/${driveId}/folder`, {
+      method: 'POST',
+      body: JSON.stringify({ name, parent_id: parentId }),
+    }),
+
+  renameFile: (fileId: string, newName: string) =>
+    request<DriveFile>(`/drive/files/${fileId}/rename`, {
+      method: 'PUT',
+      body: JSON.stringify({ new_name: newName }),
+    }),
+
+  moveFile: (fileId: string, newParentId: string) =>
+    request<DriveFile>(`/drive/files/${fileId}/move`, {
+      method: 'PUT',
+      body: JSON.stringify({ new_parent_id: newParentId }),
+    }),
+
+  deleteFile: (fileId: string) =>
+    request<{ message: string }>(`/drive/files/${fileId}`, { method: 'DELETE' }),
 };
 
 export { ApiError };

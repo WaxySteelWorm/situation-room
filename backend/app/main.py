@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import load_config
 from .models.database import init_db, get_db
 from .utils.logging import setup_logging
-from .routers import auth_router, tasks_router, credentials_router, dashboard_router, documents_router, columns_router, uploads_router, users_router, monitoring_router
+from .routers import auth_router, tasks_router, credentials_router, dashboard_router, documents_router, columns_router, uploads_router, users_router, monitoring_router, google_drive_router
 from .routers.alerts import router as alerts_router
 from .services.alert_checker import get_alert_checker
 
@@ -134,6 +134,7 @@ app.include_router(uploads_router)
 app.include_router(users_router)
 app.include_router(monitoring_router)
 app.include_router(alerts_router)
+app.include_router(google_drive_router)
 
 
 # Health check endpoint

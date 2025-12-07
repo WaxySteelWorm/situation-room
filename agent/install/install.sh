@@ -83,7 +83,7 @@ source "$INSTALL_DIR/venv/bin/activate"
 # Install dependencies
 log_info "Installing Python dependencies..."
 pip install --quiet --upgrade pip
-pip install --quiet websockets pyyaml
+pip install --quiet websockets pyyaml httpx dnspython
 
 # Download agent script
 log_info "Downloading agent script..."
@@ -126,6 +126,14 @@ health_checks:
       type: connectivity
       host: 8.8.8.8
       port: 53
+
+# Auto-update configuration
+auto_update:
+  enabled: true
+  version_url: "https://vault.stormycloud.org/agent/version"
+  install_dir: "$INSTALL_DIR"
+  venv_path: "$INSTALL_DIR/venv"
+  service_name: "situation-room-agent"
 EOF
 
 chmod 600 "$CONFIG_DIR/agent.yml"
@@ -150,7 +158,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 ReadOnlyPaths=/
-ReadWritePaths=/var/log
+ReadWritePaths=/var/log $INSTALL_DIR
 
 [Install]
 WantedBy=multi-user.target

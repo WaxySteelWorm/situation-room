@@ -112,6 +112,44 @@ class MonitoringStatusSchema(BaseModel):
     total_agents: int
 
 
+class AgentVersionSchema(BaseModel):
+    id: int
+    version: str
+    sha256: str
+    dependencies: list[str]
+    release_notes: Optional[str]
+    is_current: bool
+    is_deprecated: bool
+    published_at: str
+    created_at: str
+
+
+class AgentVersionCreateSchema(BaseModel):
+    version: str
+    sha256: str
+    dependencies: list[str] = ["websockets", "pyyaml"]
+    release_notes: Optional[str] = None
+    is_current: bool = False
+
+
+class AgentUpdateHistorySchema(BaseModel):
+    id: int
+    agent_hostname: str
+    from_version: str
+    to_version: str
+    success: bool
+    error_message: Optional[str]
+    started_at: str
+    completed_at: Optional[str]
+
+
+class AgentRolloutStatusSchema(BaseModel):
+    current_version: Optional[str]
+    version_distribution: list[dict[str, Any]]
+    agents_needing_update: int
+    total_agents: int
+
+
 # ==================== Status/Config Endpoints ====================
 
 @router.get("/status", response_model=MonitoringStatusSchema)
@@ -368,6 +406,264 @@ async def get_metric_history(
     }
 
 
+# ==================== Agent Version Management Endpoints ====================
+
+@router.get("/versions", response_model=list[AgentVersionSchema])
+async def get_agent_versions(
+    include_deprecated: bool = False,
+    db: AsyncSession = Depends(get_db),
+    session: Session = Depends(get_current_session),
+):
+    """Get all published agent versions."""
+    from sqlalchemy import select
+    from ..models.monitoring import AgentVersion
+
+    query = select(AgentVersion).order_by(AgentVersion.published_at.desc())
+    if not include_deprecated:
+        query = query.where(AgentVersion.is_deprecated == False)
+
+    result = await db.execute(query)
+    versions = result.scalars().all()
+
+    return [
+        AgentVersionSchema(
+            id=v.id,
+            version=v.version,
+            sha256=v.sha256,
+            dependencies=json.loads(v.dependencies) if v.dependencies else [],
+            release_notes=v.release_notes,
+            is_current=v.is_current,
+            is_deprecated=v.is_deprecated,
+            published_at=v.published_at.isoformat(),
+            created_at=v.created_at.isoformat()
+        )
+        for v in versions
+    ]
+
+
+@router.post("/versions", response_model=AgentVersionSchema)
+async def create_agent_version(
+    version_data: AgentVersionCreateSchema,
+    db: AsyncSession = Depends(get_db),
+    session: Session = Depends(get_current_session),
+):
+    """Publish a new agent version."""
+    from sqlalchemy import select, update
+    from ..models.monitoring import AgentVersion
+
+    # Check if version already exists
+    result = await db.execute(
+        select(AgentVersion).where(AgentVersion.version == version_data.version)
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail=f"Version {version_data.version} already exists")
+
+    # If this is the current version, unset current on all others
+    if version_data.is_current:
+        await db.execute(
+            update(AgentVersion).where(AgentVersion.is_current == True).values(is_current=False)
+        )
+
+    new_version = AgentVersion(
+        version=version_data.version,
+        sha256=version_data.sha256,
+        dependencies=json.dumps(version_data.dependencies),
+        release_notes=version_data.release_notes,
+        is_current=version_data.is_current
+    )
+    db.add(new_version)
+    await db.commit()
+    await db.refresh(new_version)
+
+    logger.info(f"Published new agent version: {version_data.version}")
+
+    return AgentVersionSchema(
+        id=new_version.id,
+        version=new_version.version,
+        sha256=new_version.sha256,
+        dependencies=json.loads(new_version.dependencies) if new_version.dependencies else [],
+        release_notes=new_version.release_notes,
+        is_current=new_version.is_current,
+        is_deprecated=new_version.is_deprecated,
+        published_at=new_version.published_at.isoformat(),
+        created_at=new_version.created_at.isoformat()
+    )
+
+
+@router.put("/versions/{version_id}/set-current")
+async def set_current_version(
+    version_id: int,
+    db: AsyncSession = Depends(get_db),
+    session: Session = Depends(get_current_session),
+):
+    """Set a version as the current version for rollout."""
+    from sqlalchemy import select, update
+    from ..models.monitoring import AgentVersion
+
+    result = await db.execute(
+        select(AgentVersion).where(AgentVersion.id == version_id)
+    )
+    version = result.scalar_one_or_none()
+    if not version:
+        raise HTTPException(status_code=404, detail="Version not found")
+
+    if version.is_deprecated:
+        raise HTTPException(status_code=400, detail="Cannot set deprecated version as current")
+
+    # Unset current on all versions
+    await db.execute(
+        update(AgentVersion).where(AgentVersion.is_current == True).values(is_current=False)
+    )
+
+    # Set this version as current
+    version.is_current = True
+    await db.commit()
+
+    logger.info(f"Set agent version {version.version} as current")
+
+    return {"message": f"Version {version.version} is now the current version"}
+
+
+@router.put("/versions/{version_id}/deprecate")
+async def deprecate_version(
+    version_id: int,
+    db: AsyncSession = Depends(get_db),
+    session: Session = Depends(get_current_session),
+):
+    """Deprecate a version (prevent updates to it)."""
+    from sqlalchemy import select
+    from ..models.monitoring import AgentVersion
+
+    result = await db.execute(
+        select(AgentVersion).where(AgentVersion.id == version_id)
+    )
+    version = result.scalar_one_or_none()
+    if not version:
+        raise HTTPException(status_code=404, detail="Version not found")
+
+    version.is_deprecated = True
+    version.is_current = False
+    await db.commit()
+
+    logger.info(f"Deprecated agent version {version.version}")
+
+    return {"message": f"Version {version.version} has been deprecated"}
+
+
+@router.get("/rollout-status", response_model=AgentRolloutStatusSchema)
+async def get_rollout_status(
+    db: AsyncSession = Depends(get_db),
+    session: Session = Depends(get_current_session),
+):
+    """Get agent version rollout status."""
+    from sqlalchemy import select, func
+    from ..models.monitoring import AgentVersion, Agent
+
+    # Get current version
+    result = await db.execute(
+        select(AgentVersion).where(AgentVersion.is_current == True)
+    )
+    current = result.scalar_one_or_none()
+    current_version = current.version if current else None
+
+    # Get all active agents
+    result = await db.execute(
+        select(Agent).where(Agent.is_active == True)
+    )
+    agents = result.scalars().all()
+    total_agents = len(agents)
+
+    # Count agents by version
+    version_counts = {}
+    for agent in agents:
+        v = agent.version or "unknown"
+        version_counts[v] = version_counts.get(v, 0) + 1
+
+    version_distribution = [
+        {"version": v, "count": c, "percentage": (c / total_agents * 100) if total_agents > 0 else 0}
+        for v, c in sorted(version_counts.items())
+    ]
+
+    # Count agents needing update
+    agents_needing_update = sum(
+        1 for agent in agents
+        if agent.version != current_version and current_version
+    )
+
+    return AgentRolloutStatusSchema(
+        current_version=current_version,
+        version_distribution=version_distribution,
+        agents_needing_update=agents_needing_update,
+        total_agents=total_agents
+    )
+
+
+@router.get("/agents/{hostname}/update-history", response_model=list[AgentUpdateHistorySchema])
+async def get_agent_update_history(
+    hostname: str,
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    session: Session = Depends(get_current_session),
+):
+    """Get update history for a specific agent."""
+    from sqlalchemy import select
+    from ..models.monitoring import AgentUpdateHistory
+
+    result = await db.execute(
+        select(AgentUpdateHistory)
+        .where(AgentUpdateHistory.agent_hostname == hostname)
+        .order_by(AgentUpdateHistory.started_at.desc())
+        .limit(limit)
+    )
+    history = result.scalars().all()
+
+    return [
+        AgentUpdateHistorySchema(
+            id=h.id,
+            agent_hostname=h.agent_hostname,
+            from_version=h.from_version,
+            to_version=h.to_version,
+            success=h.success,
+            error_message=h.error_message,
+            started_at=h.started_at.isoformat(),
+            completed_at=h.completed_at.isoformat() if h.completed_at else None
+        )
+        for h in history
+    ]
+
+
+@router.get("/update-history", response_model=list[AgentUpdateHistorySchema])
+async def get_all_update_history(
+    limit: int = Query(100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+    session: Session = Depends(get_current_session),
+):
+    """Get recent update history across all agents."""
+    from sqlalchemy import select
+    from ..models.monitoring import AgentUpdateHistory
+
+    result = await db.execute(
+        select(AgentUpdateHistory)
+        .order_by(AgentUpdateHistory.started_at.desc())
+        .limit(limit)
+    )
+    history = result.scalars().all()
+
+    return [
+        AgentUpdateHistorySchema(
+            id=h.id,
+            agent_hostname=h.agent_hostname,
+            from_version=h.from_version,
+            to_version=h.to_version,
+            success=h.success,
+            error_message=h.error_message,
+            started_at=h.started_at.isoformat(),
+            completed_at=h.completed_at.isoformat() if h.completed_at else None
+        )
+        for h in history
+    ]
+
+
 # ==================== WebSocket Endpoint for Agents ====================
 
 @router.websocket("/ws/agent")
@@ -521,6 +817,57 @@ async def agent_websocket(
 
             elif msg_type == "ping":
                 await websocket.send_json({"type": "pong"})
+                await monitoring_service.update_agent_status(hostname)
+
+            elif msg_type == "update_result":
+                # Agent reports the result of an update attempt
+                from ..models.monitoring import AgentUpdateHistory
+
+                success = data.get("success", False)
+                from_version = data.get("from_version", "unknown")
+                to_version = data.get("to_version", "unknown")
+                error_message = data.get("error") if not success else None
+                started_at_str = data.get("started_at")
+                completed_at_str = data.get("completed_at")
+
+                try:
+                    started_at = datetime.fromisoformat(started_at_str) if started_at_str else datetime.utcnow()
+                    completed_at = datetime.fromisoformat(completed_at_str) if completed_at_str else datetime.utcnow()
+                except (ValueError, TypeError):
+                    started_at = datetime.utcnow()
+                    completed_at = datetime.utcnow()
+
+                update_history = AgentUpdateHistory(
+                    agent_hostname=hostname,
+                    from_version=from_version,
+                    to_version=to_version,
+                    success=success,
+                    error_message=error_message,
+                    started_at=started_at,
+                    completed_at=completed_at
+                )
+                db.add(update_history)
+                await db.commit()
+
+                if success:
+                    logger.info(f"Agent {hostname} updated successfully: {from_version} -> {to_version}")
+                else:
+                    logger.warning(f"Agent {hostname} update failed: {from_version} -> {to_version}: {error_message}")
+
+                    # Send notification for failed updates
+                    try:
+                        from ..services.notification import NotificationService
+                        notifier = NotificationService()
+                        alert_message = f"**Agent Update Failed**\n"
+                        alert_message += f"Hostname: {hostname}\n"
+                        alert_message += f"From: {from_version} -> {to_version}\n"
+                        alert_message += f"Error: {error_message}"
+
+                        from ..services.notification import NotificationType
+                        await notifier._send_discord(alert_message, NotificationType.STATUS_CHANGED)
+                    except Exception as e:
+                        logger.error(f"Failed to send update failure notification: {e}")
+
                 await monitoring_service.update_agent_status(hostname)
 
             # Update last message time

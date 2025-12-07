@@ -245,6 +245,67 @@ async def get_agent_script():
     return {"detail": "Agent script not found"}
 
 
+@app.get("/agent/version")
+async def get_agent_version():
+    """
+    Get the current agent version manifest.
+
+    Returns version info, download URL, SHA256 checksum, and dependencies.
+    Agents poll this endpoint to check for updates.
+    """
+    import hashlib
+    import json as json_module
+
+    script_path = agent_path / "situation-room-agent.py"
+    if not script_path.exists():
+        return {"detail": "Agent script not found"}
+
+    # Read agent script to extract version and calculate hash
+    content = script_path.read_bytes()
+    sha256_hash = hashlib.sha256(content).hexdigest()
+
+    # Extract version from script content
+    content_str = content.decode('utf-8')
+    version = "1.0.0"  # Default
+    for line in content_str.split('\n'):
+        if line.strip().startswith('__version__') or line.strip().startswith('VERSION'):
+            # Parse VERSION = '1.0.0' or __version__ = "1.0.0"
+            if '=' in line:
+                version_part = line.split('=')[1].strip().strip("'\"")
+                version = version_part
+                break
+
+    # Base dependencies (can be extended via database)
+    dependencies = ["websockets", "pyyaml"]
+
+    # Try to get additional info from database if available
+    try:
+        from .models.database import get_db
+        from .models.monitoring import AgentVersion
+        from sqlalchemy import select
+
+        async for db in get_db():
+            result = await db.execute(
+                select(AgentVersion).where(AgentVersion.is_current == True)
+            )
+            current_version = result.scalar_one_or_none()
+            if current_version:
+                version = current_version.version
+                sha256_hash = current_version.sha256
+                if current_version.dependencies:
+                    dependencies = json_module.loads(current_version.dependencies)
+            break
+    except Exception as e:
+        logger.debug(f"Could not load version from database: {e}")
+
+    return {
+        "version": version,
+        "url": "https://vault.stormycloud.org/agent/situation-room-agent.py",
+        "sha256": sha256_hash,
+        "dependencies": dependencies
+    }
+
+
 # Serve static files (frontend build)
 static_path = Path(__file__).parent / "static"
 if static_path.exists():

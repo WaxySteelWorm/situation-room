@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { monitoringApi, serviceChecksApi } from '../services/api';
-import type { MonitoringStatus, ThreatSummary, MapPoint, MonitoringAgent, ServiceCheckSummary } from '../types';
+import type { MonitoringStatus, ThreatSummary, MapPoint, MonitoringAgent, ServiceCheckSummary, AgentRolloutStatus, AgentUpdateHistory } from '../types';
 import ThreatMap from '../components/monitoring/ThreatMap';
 import HostMetrics from '../components/monitoring/HostMetrics';
 import {
@@ -15,6 +15,8 @@ import {
   ChevronRight,
   Wifi,
   WifiOff,
+  Package,
+  ArrowUpCircle,
   CheckCircle,
   XCircle,
 } from 'lucide-react';
@@ -26,9 +28,11 @@ export default function MonitoringPage() {
   const [mapPoints, setMapPoints] = useState<MapPoint[]>([]);
   const [agents, setAgents] = useState<MonitoringAgent[]>([]);
   const [serviceCheckSummary, setServiceCheckSummary] = useState<ServiceCheckSummary | null>(null);
+  const [rolloutStatus, setRolloutStatus] = useState<AgentRolloutStatus | null>(null);
+  const [updateHistory, setUpdateHistory] = useState<AgentUpdateHistory[]>([]);
   const [timeWindow, setTimeWindow] = useState(60); // minutes
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'threats' | 'hosts' | 'agents'>('threats');
+  const [activeTab, setActiveTab] = useState<'threats' | 'hosts' | 'agents' | 'versions'>('threats');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,12 +46,14 @@ export default function MonitoringPage() {
       setIsLoading(true);
       setError(null);
 
-      const [statusData, summaryData, mapData, agentsData, serviceCheckData] = await Promise.all([
+      const [statusData, summaryData, mapData, agentsData, serviceCheckData, rolloutData, historyData] = await Promise.all([
         monitoringApi.getStatus(),
         monitoringApi.getThreatSummary(Math.ceil(timeWindow / 60)),
         monitoringApi.getMapData(timeWindow),
         monitoringApi.getAgents(),
         serviceChecksApi.getSummary().catch(() => null),
+        monitoringApi.getRolloutStatus().catch(() => null),
+        monitoringApi.getAllUpdateHistory(50).catch(() => []),
       ]);
 
       setStatus(statusData);
@@ -55,6 +61,8 @@ export default function MonitoringPage() {
       setMapPoints(mapData);
       setAgents(agentsData);
       setServiceCheckSummary(serviceCheckData);
+      setRolloutStatus(rolloutData);
+      setUpdateHistory(historyData);
     } catch (err) {
       console.error('Failed to load monitoring data:', err);
       setError('Failed to load monitoring data');
@@ -190,6 +198,13 @@ export default function MonitoringPage() {
           icon={Radio}
           label="Agents"
         />
+        <TabButton
+          active={activeTab === 'versions'}
+          onClick={() => setActiveTab('versions')}
+          icon={Package}
+          label="Versions"
+          badge={rolloutStatus?.agents_needing_update}
+        />
       </div>
 
       {/* Tab Content */}
@@ -290,10 +305,29 @@ export default function MonitoringPage() {
                         }`}>
                           {agent.status}
                         </span>
+                        {rolloutStatus?.current_version && agent.version !== rolloutStatus.current_version && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 flex items-center gap-1">
+                            <ArrowUpCircle size={10} />
+                            Update available
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm text-gray-500">
                         {agent.ip_address}
-                        {agent.version && <span className="ml-2">v{agent.version}</span>}
+                        {agent.version && (
+                          <span className={`ml-2 ${
+                            rolloutStatus?.current_version && agent.version !== rolloutStatus.current_version
+                              ? 'text-amber-500'
+                              : 'text-gray-500'
+                          }`}>
+                            v{agent.version}
+                          </span>
+                        )}
+                        {rolloutStatus?.current_version && agent.version !== rolloutStatus.current_version && (
+                          <span className="text-gray-600 ml-1">
+                            → v{rolloutStatus.current_version}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right text-sm">
@@ -310,6 +344,156 @@ export default function MonitoringPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'versions' && (
+        <div className="space-y-6">
+          {/* Rollout Status */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-lg bg-blue-500/10">
+                  <Package size={24} className="text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-white">
+                    {rolloutStatus?.current_version || 'N/A'}
+                  </p>
+                  <p className="text-sm text-gray-500">Current Version</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-lg bg-green-500/10">
+                  <CheckCircle size={24} className="text-green-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-white">
+                    {rolloutStatus ? rolloutStatus.total_agents - rolloutStatus.agents_needing_update : 0}
+                  </p>
+                  <p className="text-sm text-gray-500">Up to Date</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+              <div className="flex items-center gap-3">
+                <div className={`p-3 rounded-lg ${rolloutStatus?.agents_needing_update ? 'bg-amber-500/10' : 'bg-gray-500/10'}`}>
+                  <ArrowUpCircle size={24} className={rolloutStatus?.agents_needing_update ? 'text-amber-400' : 'text-gray-400'} />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-white">
+                    {rolloutStatus?.agents_needing_update || 0}
+                  </p>
+                  <p className="text-sm text-gray-500">Pending Updates</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Version Distribution */}
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Package size={20} className="text-blue-400" />
+              Version Distribution
+            </h3>
+            {rolloutStatus?.version_distribution.length === 0 ? (
+              <p className="text-gray-500 text-sm">No agents registered</p>
+            ) : (
+              <div className="space-y-3">
+                {rolloutStatus?.version_distribution.map((dist) => (
+                  <div key={dist.version} className="flex items-center gap-4">
+                    <span className={`font-mono text-sm w-20 ${
+                      dist.version === rolloutStatus?.current_version
+                        ? 'text-green-400'
+                        : 'text-amber-400'
+                    }`}>
+                      v{dist.version}
+                    </span>
+                    <div className="flex-1 bg-gray-800 rounded-full h-4 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${
+                          dist.version === rolloutStatus?.current_version
+                            ? 'bg-green-500'
+                            : 'bg-amber-500'
+                        }`}
+                        style={{ width: `${dist.percentage}%` }}
+                      />
+                    </div>
+                    <span className="text-gray-400 text-sm w-24 text-right">
+                      {dist.count} agents ({dist.percentage.toFixed(1)}%)
+                    </span>
+                    {dist.version === rolloutStatus?.current_version && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
+                        Current
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Recent Update History */}
+          <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-800">
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Activity size={20} className="text-purple-400" />
+                Recent Update History
+              </h3>
+            </div>
+            {updateHistory.length === 0 ? (
+              <div className="p-8 text-center">
+                <ArrowUpCircle size={48} className="mx-auto mb-4 text-gray-600" />
+                <h4 className="text-lg font-medium text-gray-400 mb-2">No Update History</h4>
+                <p className="text-gray-500 text-sm max-w-md mx-auto">
+                  Agent updates will appear here once agents start auto-updating.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-800 max-h-96 overflow-y-auto">
+                {updateHistory.map(update => (
+                  <div key={update.id} className="px-4 py-3 hover:bg-gray-800/50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="flex-shrink-0">
+                        {update.success ? (
+                          <CheckCircle size={16} className="text-green-400" />
+                        ) : (
+                          <XCircle size={16} className="text-red-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-white">{update.agent_hostname}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            update.success
+                              ? 'bg-green-500/20 text-green-400'
+                              : 'bg-red-500/20 text-red-400'
+                          }`}>
+                            {update.success ? 'Success' : 'Failed'}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          v{update.from_version} → v{update.to_version}
+                          {update.error_message && (
+                            <span className="text-red-400 ml-2">
+                              Error: {update.error_message}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right text-sm text-gray-500">
+                        {update.completed_at
+                          ? new Date(update.completed_at).toLocaleString()
+                          : 'In progress...'}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -358,11 +542,13 @@ function TabButton({
   onClick,
   icon: Icon,
   label,
+  badge,
 }: {
   active: boolean;
   onClick: () => void;
   icon: typeof Shield;
   label: string;
+  badge?: number;
 }) {
   return (
     <button
@@ -375,6 +561,11 @@ function TabButton({
     >
       <Icon size={18} />
       {label}
+      {badge !== undefined && badge > 0 && (
+        <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-amber-500 text-white">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }

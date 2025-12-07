@@ -305,3 +305,38 @@ export interface CheckTypeInfo {
   name: string;
   description: string;
 }
+
+// Agent Version types
+export interface AgentVersion {
+  id: number;
+  version: string;
+  sha256: string;
+  dependencies: string[];
+  release_notes: string | null;
+  is_current: boolean;
+  is_deprecated: boolean;
+  published_at: string;
+  created_at: string;
+}
+
+export interface AgentUpdateHistory {
+  id: number;
+  agent_hostname: string;
+  from_version: string;
+  to_version: string;
+  success: boolean;
+  error_message: string | null;
+  started_at: string;
+  completed_at: string | null;
+}
+
+export interface AgentRolloutStatus {
+  current_version: string | null;
+  version_distribution: Array<{
+    version: string;
+    count: number;
+    percentage: number;
+  }>;
+  agents_needing_update: number;
+  total_agents: number;
+}

@@ -363,7 +363,10 @@ import type {
   MapPoint,
   HealthCheck,
   HostMetrics,
-  MetricValue
+  MetricValue,
+  AgentVersion,
+  AgentUpdateHistory,
+  AgentRolloutStatus
 } from '../types';
 
 export const monitoringApi = {
@@ -428,6 +431,41 @@ export const monitoringApi = {
       metric: string;
       values: MetricValue[];
     }>(`/monitoring/prometheus/history/${encodeURIComponent(instance)}/${metric}?hours=${hours}`),
+
+  // Agent Version Management
+  getVersions: (includeDeprecated = false) =>
+    request<AgentVersion[]>(`/monitoring/versions?include_deprecated=${includeDeprecated}`),
+
+  createVersion: (data: {
+    version: string;
+    sha256: string;
+    dependencies?: string[];
+    release_notes?: string;
+    is_current?: boolean;
+  }) =>
+    request<AgentVersion>('/monitoring/versions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  setCurrentVersion: (versionId: number) =>
+    request<{ message: string }>(`/monitoring/versions/${versionId}/set-current`, {
+      method: 'PUT',
+    }),
+
+  deprecateVersion: (versionId: number) =>
+    request<{ message: string }>(`/monitoring/versions/${versionId}/deprecate`, {
+      method: 'PUT',
+    }),
+
+  getRolloutStatus: () =>
+    request<AgentRolloutStatus>('/monitoring/rollout-status'),
+
+  getAgentUpdateHistory: (hostname: string, limit = 50) =>
+    request<AgentUpdateHistory[]>(`/monitoring/agents/${encodeURIComponent(hostname)}/update-history?limit=${limit}`),
+
+  getAllUpdateHistory: (limit = 100) =>
+    request<AgentUpdateHistory[]>(`/monitoring/update-history?limit=${limit}`),
 };
 
 // Alerts API

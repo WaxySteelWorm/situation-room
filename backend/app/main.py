@@ -14,11 +14,14 @@ from .config import load_config
 from .models.database import init_db, get_db
 from .utils.logging import setup_logging
 from .routers import auth_router, tasks_router, credentials_router, dashboard_router, documents_router, columns_router, uploads_router, users_router, monitoring_router
+from .routers.alerts import router as alerts_router
+from .services.alert_checker import get_alert_checker
 
 logger = logging.getLogger(__name__)
 
 # Background task for monitoring data retention
 _retention_task: asyncio.Task | None = None
+_alert_checker = None
 
 
 async def monitoring_retention_task():
@@ -81,10 +84,19 @@ async def lifespan(app: FastAPI):
         logger.info("Monitoring module enabled")
         _retention_task = asyncio.create_task(monitoring_retention_task())
 
+    # Start alert checker
+    _alert_checker = get_alert_checker()
+    await _alert_checker.start()
+    logger.info("Alert checker started")
+
     yield
 
     # Shutdown
     logger.info("Shutting down Situation Room...")
+
+    # Stop alert checker
+    if _alert_checker:
+        await _alert_checker.stop()
 
     # Cancel background tasks
     if _retention_task:
@@ -121,6 +133,7 @@ app.include_router(columns_router)
 app.include_router(uploads_router)
 app.include_router(users_router)
 app.include_router(monitoring_router)
+app.include_router(alerts_router)
 
 
 # Health check endpoint
@@ -177,6 +190,12 @@ async def serve_spa(request: Request, full_path: str):
     if full_path.startswith("api/"):
         return {"detail": "Not found"}
 
+    # Check if it's a static file that exists
+    static_file = Path(__file__).parent / "static" / full_path
+    if static_file.exists() and static_file.is_file():
+        return FileResponse(static_file)
+
+    # Otherwise serve the SPA
     index_path = Path(__file__).parent / "static" / "index.html"
     if index_path.exists():
         return FileResponse(index_path)

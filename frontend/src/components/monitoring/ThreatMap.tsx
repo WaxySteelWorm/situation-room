@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
+import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import type { MapPoint } from '../../types';
 
 interface ThreatMapProps {
@@ -17,19 +18,76 @@ function latLngToXY(lat: number, lng: number, width: number, height: number): { 
 }
 
 // Calculate point size based on count
-function getPointSize(count: number, maxCount: number): number {
+function getPointSize(count: number, maxCount: number, zoom: number): number {
   const minSize = 4;
   const maxSize = 20;
   const normalized = Math.log(count + 1) / Math.log(maxCount + 1);
-  return minSize + normalized * (maxSize - minSize);
+  // Scale point size inversely with zoom so they don't get huge when zoomed in
+  return (minSize + normalized * (maxSize - minSize)) / Math.sqrt(zoom);
 }
 
 export default function ThreatMap({ points, isLoading, timeWindow, onTimeWindowChange }: ThreatMapProps) {
   const [hoveredPoint, setHoveredPoint] = useState<MapPoint | null>(null);
-  const dimensions = { width: 900, height: 450 };
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  // Use 2:1 aspect ratio to match equirectangular projection
+  const dimensions = { width: 1000, height: 500 };
 
   const maxCount = Math.max(...points.map(p => p.count), 1);
   const totalEvents = points.reduce((sum, p) => sum + p.count, 0);
+
+  // Zoom handlers
+  const handleZoomIn = useCallback(() => {
+    setZoom(z => Math.min(z * 1.5, 8));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoom(z => Math.max(z / 1.5, 1));
+  }, []);
+
+  const handleReset = useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, []);
+
+  // Mouse wheel zoom
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    setZoom(z => Math.max(1, Math.min(8, z * delta)));
+  }, []);
+
+  // Pan handlers
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (zoom > 1) {
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    }
+  }, [zoom, pan]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (isPanning && zoom > 1) {
+      const newX = e.clientX - panStart.x;
+      const newY = e.clientY - panStart.y;
+      // Limit pan to keep map visible
+      const maxPan = (zoom - 1) * 200;
+      setPan({
+        x: Math.max(-maxPan, Math.min(maxPan, newX)),
+        y: Math.max(-maxPan, Math.min(maxPan, newY)),
+      });
+    }
+  }, [isPanning, panStart, zoom]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsPanning(false);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setIsPanning(false);
+  }, []);
 
   const timeOptions = [
     { value: 5, label: '5 min' },
@@ -73,9 +131,18 @@ export default function ThreatMap({ points, isLoading, timeWindow, onTimeWindowC
       </div>
 
       {/* Map Container */}
-      <div className="relative" style={{ height: '500px' }}>
+      <div
+        ref={containerRef}
+        className="relative overflow-hidden"
+        style={{ height: '500px', cursor: zoom > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default' }}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+      >
         {isLoading && (
-          <div className="absolute inset-0 bg-cyber-black/80 backdrop-blur-sm flex items-center justify-center z-10">
+          <div className="absolute inset-0 bg-cyber-black/80 backdrop-blur-sm flex items-center justify-center z-20">
             <div className="text-neon-blue animate-pulse flex items-center gap-2">
               <div className="w-2 h-2 bg-neon-blue rounded-full animate-bounce"></div>
               Loading threat data...
@@ -83,17 +150,77 @@ export default function ThreatMap({ points, isLoading, timeWindow, onTimeWindowC
           </div>
         )}
 
-        <svg
-          viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
-          className="w-full h-full"
-          style={{ background: '#050505' }}
-          preserveAspectRatio="xMidYMid slice"
+        {/* Zoom Controls */}
+        <div className="absolute top-4 left-4 z-20 flex flex-col gap-1">
+          <button
+            onClick={handleZoomIn}
+            className="p-2 bg-cyber-black/80 hover:bg-cyber-black border border-white/10 rounded-lg transition-colors"
+            title="Zoom in"
+          >
+            <ZoomIn size={16} className="text-gray-400" />
+          </button>
+          <button
+            onClick={handleZoomOut}
+            disabled={zoom <= 1}
+            className="p-2 bg-cyber-black/80 hover:bg-cyber-black border border-white/10 rounded-lg transition-colors disabled:opacity-50"
+            title="Zoom out"
+          >
+            <ZoomOut size={16} className="text-gray-400" />
+          </button>
+          <button
+            onClick={handleReset}
+            disabled={zoom <= 1}
+            className="p-2 bg-cyber-black/80 hover:bg-cyber-black border border-white/10 rounded-lg transition-colors disabled:opacity-50"
+            title="Reset view"
+          >
+            <Maximize2 size={16} className="text-gray-400" />
+          </button>
+          {zoom > 1 && (
+            <div className="px-2 py-1 bg-cyber-black/80 border border-white/10 rounded-lg text-xs text-gray-400 text-center">
+              {zoom.toFixed(1)}x
+            </div>
+          )}
+        </div>
+
+        {/* Zoomable/Pannable container */}
+        <div
+          className="absolute inset-0 transition-transform duration-100"
+          style={{
+            transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+            transformOrigin: 'center center',
+          }}
         >
-          {/* Grid Overlay */}
+          {/* World Map Background Image - 2:1 equirectangular projection */}
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: 'url(/world-map.jpg)',
+              backgroundSize: '100% 100%',
+              backgroundPosition: 'center',
+              filter: 'brightness(0.3) saturate(0.4)',
+            }}
+          />
+
+          {/* Dark overlay with grid */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: 'linear-gradient(rgba(5,5,5,0.7), rgba(5,5,5,0.7))',
+              backgroundImage: `
+                linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px)
+              `,
+              backgroundSize: '50px 50px',
+            }}
+          />
+
+          <svg
+            viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
+            className="w-full h-full relative z-10"
+            preserveAspectRatio="xMidYMid slice"
+          >
+          {/* Defs for effects */}
           <defs>
-            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0, 243, 255, 0.05)" strokeWidth="1" />
-            </pattern>
             {/* Glow filter for points */}
             <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="3" result="coloredBlur" />
@@ -109,90 +236,10 @@ export default function ThreatMap({ points, isLoading, timeWindow, onTimeWindowC
             </radialGradient>
           </defs>
 
-          {/* Grid Background */}
-          <rect width="100%" height="100%" fill="url(#grid)" />
-
-          {/* World Map - Simplified but recognizable continents */}
-          <g opacity="0.4">
-            {/* North America */}
-            <path
-              d="M 100 50 L 180 40 L 220 60 L 240 100 L 230 140 L 200 160 L 160 150 L 120 130 L 90 100 L 80 70 Z"
-              fill="rgba(26, 26, 46, 0.8)"
-              stroke="rgba(0, 243, 255, 0.4)"
-              strokeWidth="1.5"
-            />
-            {/* United States (more detailed) */}
-            <path
-              d="M 120 80 L 200 75 L 210 110 L 190 130 L 140 125 L 110 100 Z"
-              fill="rgba(26, 26, 46, 0.9)"
-              stroke="rgba(0, 243, 255, 0.5)"
-              strokeWidth="1.5"
-            />
-            {/* South America */}
-            <path
-              d="M 160 150 L 200 155 L 210 200 L 200 250 L 170 260 L 150 240 L 140 200 L 145 170 Z"
-              fill="rgba(26, 26, 46, 0.8)"
-              stroke="rgba(0, 243, 255, 0.4)"
-              strokeWidth="1.5"
-            />
-            {/* Europe */}
-            <path
-              d="M 400 50 L 460 45 L 480 70 L 470 100 L 440 110 L 410 95 L 390 70 Z"
-              fill="rgba(26, 26, 46, 0.8)"
-              stroke="rgba(0, 243, 255, 0.4)"
-              strokeWidth="1.5"
-            />
-            {/* Africa */}
-            <path
-              d="M 420 100 L 480 95 L 500 140 L 490 200 L 460 220 L 430 200 L 410 150 L 405 120 Z"
-              fill="rgba(26, 26, 46, 0.8)"
-              stroke="rgba(0, 243, 255, 0.4)"
-              strokeWidth="1.5"
-            />
-            {/* Asia */}
-            <path
-              d="M 500 40 L 700 35 L 750 60 L 780 100 L 760 150 L 720 170 L 680 160 L 640 140 L 600 120 L 560 100 L 530 70 L 510 50 Z"
-              fill="rgba(26, 26, 46, 0.8)"
-              stroke="rgba(0, 243, 255, 0.4)"
-              strokeWidth="1.5"
-            />
-            {/* China/India region */}
-            <path
-              d="M 600 80 L 680 75 L 700 110 L 680 140 L 630 135 L 590 110 Z"
-              fill="rgba(26, 26, 46, 0.9)"
-              stroke="rgba(0, 243, 255, 0.5)"
-              strokeWidth="1.5"
-            />
-            {/* Australia */}
-            <path
-              d="M 700 200 L 780 195 L 800 220 L 780 250 L 720 255 L 690 235 Z"
-              fill="rgba(26, 26, 46, 0.8)"
-              stroke="rgba(0, 243, 255, 0.4)"
-              strokeWidth="1.5"
-            />
-            {/* Greenland */}
-            <path
-              d="M 280 20 L 340 25 L 330 60 L 300 65 L 270 50 Z"
-              fill="rgba(26, 26, 46, 0.8)"
-              stroke="rgba(0, 243, 255, 0.4)"
-              strokeWidth="1.5"
-            />
-            {/* Equator line */}
-            <line
-              x1="0"
-              y1="225"
-              x2="900"
-              y2="225"
-              stroke="rgba(0, 243, 255, 0.15)"
-              strokeWidth="1"
-              strokeDasharray="5,5"
-            />
-          </g>
-
           {/* Threat points */}
           {points.map((point, idx) => {
             const { x, y } = latLngToXY(point.lat, point.lng, dimensions.width, dimensions.height);
-            const size = getPointSize(point.count, maxCount);
+            const size = getPointSize(point.count, maxCount, zoom);
             const isHovered = hoveredPoint === point;
 
             return (
@@ -234,14 +281,16 @@ export default function ThreatMap({ points, isLoading, timeWindow, onTimeWindowC
             );
           })}
         </svg>
+        </div>{/* End zoomable container */}
 
-        {/* Tooltip */}
+        {/* Tooltip - outside zoom container so it doesn't scale */}
         {hoveredPoint && (
           <div
-            className="absolute pointer-events-none bg-cyber-black/90 backdrop-blur-md border border-neon-red/30 rounded-lg px-3 py-2 text-sm shadow-[0_0_15px_rgba(255,0,0,0.2)] z-20"
+            className="absolute pointer-events-none bg-cyber-black/90 backdrop-blur-md border border-neon-red/30 rounded-lg px-3 py-2 text-sm shadow-[0_0_15px_rgba(255,0,0,0.2)] z-30"
             style={{
-              left: latLngToXY(hoveredPoint.lat, hoveredPoint.lng, dimensions.width, dimensions.height).x + 20,
-              top: latLngToXY(hoveredPoint.lat, hoveredPoint.lng, dimensions.width, dimensions.height).y - 10,
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
             }}
           >
             <div className="font-semibold text-white">
@@ -257,7 +306,7 @@ export default function ThreatMap({ points, isLoading, timeWindow, onTimeWindowC
         )}
 
         {/* Legend */}
-        <div className="absolute bottom-4 left-4 bg-cyber-black/80 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-2">
+        <div className="absolute bottom-4 left-4 bg-cyber-black/80 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-2 z-20">
           <div className="text-xs text-gray-400 mb-2">Attack Intensity</div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
@@ -276,7 +325,7 @@ export default function ThreatMap({ points, isLoading, timeWindow, onTimeWindowC
         </div>
 
         {/* Live indicator */}
-        <div className="absolute top-4 right-4 flex items-center gap-2 bg-cyber-black/80 backdrop-blur-sm border border-neon-green/30 rounded-full px-3 py-1 shadow-[0_0_10px_rgba(0,255,157,0.2)]">
+        <div className="absolute top-4 right-4 flex items-center gap-2 bg-cyber-black/80 backdrop-blur-sm border border-neon-green/30 rounded-full px-3 py-1 shadow-[0_0_10px_rgba(0,255,157,0.2)] z-20">
           <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse shadow-[0_0_5px_rgba(0,255,157,0.8)]" />
           <span className="text-xs text-neon-green font-bold tracking-wider">LIVE</span>
         </div>

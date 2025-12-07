@@ -183,14 +183,17 @@ class PrometheusService:
 
     async def get_hosts(self) -> list[str]:
         """Get list of all monitored hosts (instances with node_exporter)."""
-        results = await self.query("up{job=~'node.*'}")
+        # Look for instances on port 9100 (node_exporter) or with node metrics
+        results = await self.query('up{instance=~".*:9100"}')
+        if not results:
+            # Fallback: look for any instance with node_cpu metric
+            results = await self.query('count by (instance) (node_cpu_seconds_total)')
+
         hosts = set()
         for result in results:
             instance = result.get("metric", {}).get("instance", "")
             if instance:
-                # Extract hostname from instance (remove port)
-                hostname = instance.split(":")[0]
-                hosts.add(hostname)
+                hosts.add(instance)
         return sorted(hosts)
 
     async def get_host_metrics(self, instance: str) -> Optional[HostMetrics]:
@@ -260,8 +263,8 @@ class PrometheusService:
 
     async def get_all_host_metrics(self) -> list[HostMetrics]:
         """Get metrics for all monitored hosts."""
-        # First, get all instances
-        results = await self.query("up{job=~'node.*'}")
+        # Get all instances with node_exporter (port 9100)
+        results = await self.query('up{instance=~".*:9100"}')
         instances = [r.get("metric", {}).get("instance", "") for r in results if r.get("value", [0, 1])[1] == "1"]
 
         # Get metrics for each host

@@ -7,6 +7,7 @@ from .document import Document
 from .column import Column
 from .user import User
 from .monitoring import Agent, ThreatEvent, CountryAggregate, HealthCheck, AgentStatus
+from .alerts import AlertRule, AlertHistory, AlertSettings, AlertSeverity, AlertType, NotificationChannel
 
 __all__ = [
     "Base",
@@ -25,4 +26,10 @@ __all__ = [
     "CountryAggregate",
     "HealthCheck",
     "AgentStatus",
+    "AlertRule",
+    "AlertHistory",
+    "AlertSettings",
+    "AlertSeverity",
+    "AlertType",
+    "NotificationChannel",
 ]

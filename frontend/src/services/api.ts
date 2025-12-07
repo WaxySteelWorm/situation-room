@@ -430,4 +430,152 @@ export const monitoringApi = {
     }>(`/monitoring/prometheus/history/${encodeURIComponent(instance)}/${metric}?hours=${hours}`),
 };
 
+// Alerts API
+export interface AlertSettings {
+  alerts_enabled: boolean;
+  discord_webhook_url: string | null;
+  discord_enabled: boolean;
+  email_enabled: boolean;
+  email_recipients: string[];
+  default_cpu_threshold: number;
+  default_memory_threshold: number;
+  default_disk_threshold: number;
+  default_load_threshold: number;
+  check_interval_seconds: number;
+  quiet_hours_enabled: boolean;
+  quiet_hours_start: number | null;
+  quiet_hours_end: number | null;
+}
+
+export interface AlertRule {
+  id: number;
+  name: string;
+  description: string | null;
+  alert_type: string;
+  enabled: boolean;
+  severity: string;
+  conditions: Record<string, number> | null;
+  host_filter: string[] | null;
+  notify_discord: boolean;
+  notify_email: boolean;
+  cooldown_minutes: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlertHistory {
+  id: number;
+  rule_id: number | null;
+  rule_name: string;
+  alert_type: string;
+  severity: string;
+  hostname: string | null;
+  message: string;
+  details: Record<string, unknown> | null;
+  metric_value: number | null;
+  threshold_value: number | null;
+  discord_sent: boolean;
+  email_sent: boolean;
+  is_resolved: boolean;
+  resolved_at: string | null;
+  triggered_at: string;
+}
+
+export interface AlertType {
+  value: string;
+  label: string;
+  category: string;
+}
+
+export interface AlertSeverity {
+  value: string;
+  label: string;
+  color: string;
+}
+
+export const alertsApi = {
+  // Settings
+  getSettings: () =>
+    request<AlertSettings>('/alerts/settings'),
+
+  updateSettings: (settings: Partial<AlertSettings>) =>
+    request<AlertSettings>('/alerts/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    }),
+
+  // Rules
+  getRules: () =>
+    request<AlertRule[]>('/alerts/rules'),
+
+  createRule: (rule: {
+    name: string;
+    description?: string;
+    alert_type: string;
+    enabled?: boolean;
+    severity?: string;
+    conditions?: Record<string, number>;
+    host_filter?: string[];
+    notify_discord?: boolean;
+    notify_email?: boolean;
+    cooldown_minutes?: number;
+  }) =>
+    request<AlertRule>('/alerts/rules', {
+      method: 'POST',
+      body: JSON.stringify(rule),
+    }),
+
+  updateRule: (id: number, rule: Partial<{
+    name: string;
+    description: string;
+    enabled: boolean;
+    severity: string;
+    conditions: Record<string, number>;
+    host_filter: string[];
+    notify_discord: boolean;
+    notify_email: boolean;
+    cooldown_minutes: number;
+  }>) =>
+    request<AlertRule>(`/alerts/rules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(rule),
+    }),
+
+  deleteRule: (id: number) =>
+    request<{ status: string }>(`/alerts/rules/${id}`, { method: 'DELETE' }),
+
+  // History
+  getHistory: (params?: {
+    limit?: number;
+    offset?: number;
+    unresolved_only?: boolean;
+    hostname?: string;
+    severity?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    if (params?.unresolved_only) query.set('unresolved_only', 'true');
+    if (params?.hostname) query.set('hostname', params.hostname);
+    if (params?.severity) query.set('severity', params.severity);
+    return request<AlertHistory[]>(`/alerts/history?${query.toString()}`);
+  },
+
+  resolveAlert: (id: number) =>
+    request<{ status: string }>(`/alerts/history/${id}/resolve`, { method: 'POST' }),
+
+  // Meta
+  getTypes: () =>
+    request<AlertType[]>('/alerts/types'),
+
+  getSeverities: () =>
+    request<AlertSeverity[]>('/alerts/severities'),
+
+  // Test
+  testNotification: (channel: string) =>
+    request<{ status: string; channel: string }>(`/alerts/test?channel=${channel}`, {
+      method: 'POST',
+    }),
+};
+
 export { ApiError };

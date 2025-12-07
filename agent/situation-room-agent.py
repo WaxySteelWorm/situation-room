@@ -5,6 +5,8 @@ Situation Room Monitoring Agent
 A lightweight agent that collects UFW logs and health check data,
 then pushes them to the Situation Room server via WebSocket.
 
+Supports automatic self-updates when new versions are available.
+
 Requirements:
     pip install websockets pyyaml
 
@@ -12,19 +14,25 @@ Usage:
     python situation-room-agent.py --config /path/to/agent-config.yml
 """
 
+__version__ = "1.0.0"
+
 import argparse
 import asyncio
+import hashlib
 import json
 import logging
 import os
 import platform
+import random
 import re
+import shutil
 import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -83,6 +91,14 @@ class Config:
             {'name': 'memory', 'type': 'memory'},
             {'name': 'internet', 'type': 'connectivity', 'host': '8.8.8.8', 'port': 53},
         ])
+
+        # Auto-update settings
+        auto_update = config.get('auto_update', {})
+        self.auto_update_enabled = auto_update.get('enabled', True)
+        self.version_url = auto_update.get('version_url', 'https://vault.stormycloud.org/agent/version')
+        self.install_dir = auto_update.get('install_dir', '/opt/situation-room-agent')
+        self.venv_path = auto_update.get('venv_path', '/opt/situation-room-agent/venv')
+        self.service_name = auto_update.get('service_name', 'situation-room-agent')
 
         if not self.api_key:
             raise ValueError("API key is required in configuration")
@@ -320,15 +336,274 @@ class HealthChecker:
         return result
 
 
+class AutoUpdater:
+    """Handles automatic agent updates."""
+
+    def __init__(self, config: Config):
+        self.config = config
+        self.current_version = __version__
+        self._update_check_time: Optional[datetime] = None
+        self._next_check: Optional[datetime] = None
+        self._update_in_progress = False
+        self._schedule_next_check()
+
+    def _schedule_next_check(self):
+        """Schedule the next update check at a random time within 24 hours."""
+        # Pick a random time within the next 24 hours
+        random_hours = random.uniform(0.5, 24.0)  # Between 30 min and 24 hours
+        self._next_check = datetime.now() + timedelta(hours=random_hours)
+        logger.info(f"Next update check scheduled for: {self._next_check.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    def should_check_update(self) -> bool:
+        """Check if it's time to check for updates."""
+        if not self.config.auto_update_enabled:
+            return False
+        if self._update_in_progress:
+            return False
+        if self._next_check is None:
+            self._schedule_next_check()
+            return False
+        return datetime.now() >= self._next_check
+
+    async def check_for_update(self) -> Optional[dict]:
+        """Check the version endpoint for available updates."""
+        import ssl
+        import urllib.request
+        import urllib.error
+
+        try:
+            logger.info(f"Checking for updates at {self.config.version_url}")
+
+            # Create SSL context
+            ssl_context = ssl.create_default_context()
+            if not self.config.verify_ssl:
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+
+            request = urllib.request.Request(
+                self.config.version_url,
+                headers={'User-Agent': f'SituationRoomAgent/{self.current_version}'}
+            )
+
+            with urllib.request.urlopen(request, timeout=30, context=ssl_context) as response:
+                data = json.loads(response.read().decode('utf-8'))
+
+            server_version = data.get('version', '0.0.0')
+
+            # Compare versions
+            if self._version_compare(server_version, self.current_version) > 0:
+                logger.info(f"Update available: {self.current_version} -> {server_version}")
+                return data
+            else:
+                logger.info(f"Agent is up to date (v{self.current_version})")
+                return None
+
+        except urllib.error.URLError as e:
+            logger.error(f"Failed to check for updates: {e}")
+            return None
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON from version endpoint: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error checking for updates: {e}")
+            return None
+        finally:
+            # Schedule next check regardless of result
+            self._schedule_next_check()
+
+    def _version_compare(self, v1: str, v2: str) -> int:
+        """Compare two semantic version strings. Returns >0 if v1 > v2."""
+        def parse_version(v: str) -> tuple:
+            # Handle versions like "1.0.0" or "v1.0.0"
+            v = v.lstrip('v')
+            parts = []
+            for part in v.split('.'):
+                try:
+                    parts.append(int(part))
+                except ValueError:
+                    parts.append(0)
+            # Pad to 3 parts
+            while len(parts) < 3:
+                parts.append(0)
+            return tuple(parts[:3])
+
+        v1_parts = parse_version(v1)
+        v2_parts = parse_version(v2)
+
+        for a, b in zip(v1_parts, v2_parts):
+            if a > b:
+                return 1
+            elif a < b:
+                return -1
+        return 0
+
+    async def perform_update(self, update_info: dict) -> dict:
+        """
+        Download and install the update.
+
+        Returns a dict with update result for reporting to server.
+        """
+        import ssl
+        import urllib.request
+        import urllib.error
+
+        self._update_in_progress = True
+        started_at = datetime.now()
+        from_version = self.current_version
+        to_version = update_info.get('version', 'unknown')
+
+        result = {
+            'success': False,
+            'from_version': from_version,
+            'to_version': to_version,
+            'started_at': started_at.isoformat(),
+            'error': None
+        }
+
+        try:
+            download_url = update_info.get('url')
+            expected_sha256 = update_info.get('sha256')
+            dependencies = update_info.get('dependencies', [])
+
+            if not download_url or not expected_sha256:
+                raise ValueError("Missing download URL or SHA256 in update info")
+
+            # Create SSL context
+            ssl_context = ssl.create_default_context()
+            if not self.config.verify_ssl:
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+
+            # Download to temp location
+            logger.info(f"Downloading new agent from {download_url}")
+            with tempfile.NamedTemporaryFile(mode='wb', suffix='.py', delete=False) as tmp_file:
+                tmp_path = tmp_file.name
+
+                request = urllib.request.Request(
+                    download_url,
+                    headers={'User-Agent': f'SituationRoomAgent/{self.current_version}'}
+                )
+
+                with urllib.request.urlopen(request, timeout=60, context=ssl_context) as response:
+                    content = response.read()
+                    tmp_file.write(content)
+
+            # Verify SHA256 checksum
+            logger.info("Verifying checksum...")
+            actual_sha256 = hashlib.sha256(content).hexdigest()
+            if actual_sha256.lower() != expected_sha256.lower():
+                os.unlink(tmp_path)
+                raise ValueError(f"Checksum mismatch: expected {expected_sha256}, got {actual_sha256}")
+
+            logger.info("Checksum verified successfully")
+
+            # Install/update dependencies if needed
+            if dependencies:
+                await self._update_dependencies(dependencies)
+
+            # Replace the agent script
+            agent_script_path = Path(self.config.install_dir) / 'situation-room-agent.py'
+            logger.info(f"Replacing agent script at {agent_script_path}")
+
+            # Backup old script
+            backup_path = agent_script_path.with_suffix('.py.bak')
+            if agent_script_path.exists():
+                shutil.copy2(agent_script_path, backup_path)
+                logger.info(f"Backed up old script to {backup_path}")
+
+            # Move new script into place
+            shutil.move(tmp_path, agent_script_path)
+            os.chmod(agent_script_path, 0o755)
+
+            result['success'] = True
+            result['completed_at'] = datetime.now().isoformat()
+            logger.info(f"Update completed successfully: {from_version} -> {to_version}")
+
+            # Schedule restart
+            logger.info("Scheduling service restart...")
+            await self._schedule_restart()
+
+        except Exception as e:
+            error_msg = str(e)
+            result['error'] = error_msg
+            result['completed_at'] = datetime.now().isoformat()
+            logger.error(f"Update failed: {error_msg}")
+
+            # Clean up temp file if it exists
+            if 'tmp_path' in locals() and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+        finally:
+            self._update_in_progress = False
+
+        return result
+
+    async def _update_dependencies(self, dependencies: list):
+        """Install or update dependencies using pip in the venv."""
+        logger.info(f"Updating dependencies: {dependencies}")
+
+        pip_path = Path(self.config.venv_path) / 'bin' / 'pip'
+        if not pip_path.exists():
+            pip_path = Path(self.config.venv_path) / 'bin' / 'pip3'
+
+        if not pip_path.exists():
+            logger.warning(f"pip not found at {pip_path}, skipping dependency update")
+            return
+
+        for dep in dependencies:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    str(pip_path), 'install', '--quiet', '--upgrade', dep,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+
+                if proc.returncode == 0:
+                    logger.info(f"Updated dependency: {dep}")
+                else:
+                    logger.warning(f"Failed to update {dep}: {stderr.decode()}")
+
+            except asyncio.TimeoutError:
+                logger.warning(f"Timeout updating dependency: {dep}")
+            except Exception as e:
+                logger.warning(f"Error updating dependency {dep}: {e}")
+
+    async def _schedule_restart(self):
+        """Schedule a service restart using systemctl."""
+        try:
+            # Use a small delay to allow the update result to be sent
+            await asyncio.sleep(2)
+
+            logger.info(f"Restarting service: {self.config.service_name}")
+
+            # Use subprocess to restart (this will terminate the current process)
+            proc = await asyncio.create_subprocess_exec(
+                'systemctl', 'restart', self.config.service_name,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+
+            if proc.returncode != 0:
+                logger.error(f"Failed to restart service: {stderr.decode()}")
+            else:
+                logger.info("Service restart initiated")
+
+        except Exception as e:
+            logger.error(f"Error scheduling restart: {e}")
+
+
 class Agent:
     """Main monitoring agent."""
 
-    VERSION = '1.0.0'
+    VERSION = __version__
 
     def __init__(self, config: Config):
         self.config = config
         self.ufw_reader = UFWLogReader(config.ufw_log_path) if config.ufw_enabled else None
         self.health_checker = HealthChecker()
+        self.auto_updater = AutoUpdater(config) if config.auto_update_enabled else None
         self.running = True
         self.websocket = None
         self._reconnect_delay = 5
@@ -408,6 +683,10 @@ class Agent:
                     await self.send_report(websocket)
                     last_report = current_time
 
+                # Check for auto-updates
+                if self.auto_updater and self.auto_updater.should_check_update():
+                    await self._handle_auto_update(websocket)
+
                 # Handle incoming messages (non-blocking)
                 try:
                     message = await asyncio.wait_for(
@@ -427,6 +706,30 @@ class Agent:
             except Exception as e:
                 logger.error(f"Error in main loop: {e}")
                 await asyncio.sleep(1)
+
+    async def _handle_auto_update(self, websocket):
+        """Check for and perform auto-updates."""
+        try:
+            update_info = await self.auto_updater.check_for_update()
+
+            if update_info:
+                logger.info("Starting auto-update process...")
+
+                # Perform the update
+                result = await self.auto_updater.perform_update(update_info)
+
+                # Report result to server
+                try:
+                    await websocket.send(json.dumps({
+                        'type': 'update_result',
+                        **result
+                    }))
+                    logger.info("Update result sent to server")
+                except Exception as e:
+                    logger.error(f"Failed to send update result: {e}")
+
+        except Exception as e:
+            logger.error(f"Error in auto-update handler: {e}")
 
     async def send_report(self, websocket):
         """Send UFW logs and health check data."""
@@ -494,6 +797,7 @@ async def main():
     logger.info(f"Hostname: {config.hostname}")
     logger.info(f"Server: {config.server_url}")
     logger.info(f"Report interval: {config.report_interval}s")
+    logger.info(f"Auto-update: {'enabled' if config.auto_update_enabled else 'disabled'}")
 
     await agent.connect()
 

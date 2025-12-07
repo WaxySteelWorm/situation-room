@@ -126,6 +126,14 @@ health_checks:
       type: connectivity
       host: 8.8.8.8
       port: 53
+
+# Auto-update configuration
+auto_update:
+  enabled: true
+  version_url: "https://vault.stormycloud.org/agent/version"
+  install_dir: "$INSTALL_DIR"
+  venv_path: "$INSTALL_DIR/venv"
+  service_name: "situation-room-agent"
 EOF
 
 chmod 600 "$CONFIG_DIR/agent.yml"
@@ -150,7 +158,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 ReadOnlyPaths=/
-ReadWritePaths=/var/log
+ReadWritePaths=/var/log $INSTALL_DIR
 
 [Install]
 WantedBy=multi-user.target

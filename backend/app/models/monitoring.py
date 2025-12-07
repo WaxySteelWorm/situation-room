@@ -119,6 +119,70 @@ class CountryAggregate(Base):
     )
 
 
+class AgentVersion(Base):
+    """Published agent versions available for deployment."""
+
+    __tablename__ = "agent_versions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # Version information
+    version: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    # Dependencies (JSON array of package names)
+    dependencies: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON: ["websockets", "pyyaml"]
+
+    # Release notes
+    release_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Status
+    is_current: Mapped[bool] = mapped_column(Boolean, default=False)  # Active version for rollout
+    is_deprecated: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Timestamps
+    published_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+
+    __table_args__ = (
+        Index('ix_agent_versions_version', 'version'),
+        Index('ix_agent_versions_is_current', 'is_current'),
+    )
+
+
+class AgentUpdateHistory(Base):
+    """History of agent updates - tracks when each agent updated."""
+
+    __tablename__ = "agent_update_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # Agent reference
+    agent_hostname: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    # Update details
+    from_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    to_version: Mapped[str] = mapped_column(String(50), nullable=False)
+
+    # Status
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Timestamps
+    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+
+    __table_args__ = (
+        Index('ix_agent_update_history_agent_hostname', 'agent_hostname'),
+        Index('ix_agent_update_history_started_at', 'started_at'),
+    )
+
+
 class HealthCheck(Base):
     """Health check results from agents."""
 

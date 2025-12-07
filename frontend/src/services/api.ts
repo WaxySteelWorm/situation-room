@@ -430,7 +430,6 @@ export const monitoringApi = {
     }>(`/monitoring/prometheus/history/${encodeURIComponent(instance)}/${metric}?hours=${hours}`),
 };
 
-<<<<<<< HEAD
 // Alerts API
 export interface AlertSettings {
   alerts_enabled: boolean;

@@ -19,7 +19,6 @@ import {
   CheckCircle,
   XCircle,
   HelpCircle,
-  Clock,
   Globe,
   Server,
   Trash2,
@@ -782,7 +781,7 @@ function CheckModal({
               <label className="block text-sm font-medium text-gray-400 mb-1">Type</label>
               <select
                 value={formData.check_type}
-                onChange={(e) => setFormData({ ...formData, check_type: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, check_type: e.target.value as ServiceCheck['check_type'] })}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
               >
                 {checkTypes.map((type) => (

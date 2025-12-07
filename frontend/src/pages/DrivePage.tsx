@@ -805,22 +805,31 @@ export default function DrivePage() {
             <div className="flex-1 overflow-auto p-4">
               {previewFile.mime_type === 'application/pdf' ? (
                 <iframe
-                  src={driveApi.downloadFile(previewFile.id)}
+                  src={driveApi.previewFile(previewFile.id)}
                   className="w-full h-[70vh] bg-white rounded"
                   title={previewFile.name}
                 />
               ) : previewFile.mime_type.startsWith('image/') ? (
                 <img
-                  src={driveApi.downloadFile(previewFile.id)}
+                  src={driveApi.previewFile(previewFile.id)}
                   alt={previewFile.name}
                   className="max-w-full max-h-[70vh] mx-auto object-contain"
                 />
               ) : previewFile.mime_type.includes('google-apps') ? (
-                <iframe
-                  src={previewFile.web_view_link || ''}
-                  className="w-full h-[70vh] rounded"
-                  title={previewFile.name}
-                />
+                <div className="text-center py-12">
+                  <FileText size={64} className="mx-auto mb-4 text-blue-400" />
+                  <p className="text-gray-400 mb-2">Google {previewFile.mime_type.includes('document') ? 'Doc' : previewFile.mime_type.includes('spreadsheet') ? 'Sheet' : previewFile.mime_type.includes('presentation') ? 'Slide' : 'File'}</p>
+                  <p className="text-gray-500 text-sm mb-4">Google Docs cannot be previewed inline due to security restrictions.</p>
+                  <a
+                    href={previewFile.web_view_link || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
+                  >
+                    <ExternalLink size={18} />
+                    Open in Google Drive
+                  </a>
+                </div>
               ) : (
                 <div className="text-center py-12">
                   <File size={64} className="mx-auto mb-4 text-gray-600" />

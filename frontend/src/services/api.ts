@@ -620,6 +620,9 @@ export const driveApi = {
   downloadFile: (fileId: string) =>
     `/api/drive/files/${fileId}/download`,
 
+  previewFile: (fileId: string) =>
+    `/api/drive/files/${fileId}/preview`,
+
   uploadFile: async (driveId: string, parentId: string, file: File): Promise<DriveFile> => {
     const formData = new FormData();
     formData.append('file', file);

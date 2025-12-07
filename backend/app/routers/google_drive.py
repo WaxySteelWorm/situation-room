@@ -2,6 +2,7 @@
 
 import logging
 from typing import Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
@@ -223,17 +224,49 @@ async def download_file(
     try:
         content, filename, mime_type = await service.download_file(file_id)
 
+        # Use RFC 5987 encoding for filenames with Unicode characters
+        encoded_filename = quote(filename)
         return StreamingResponse(
             io.BytesIO(content),
             media_type=mime_type,
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
                 "Content-Length": str(len(content))
             }
         )
 
     except Exception as e:
         logger.error(f"Error downloading file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/files/{file_id}/preview")
+async def preview_file(
+    file_id: str,
+    session: Session = Depends(get_current_session),
+):
+    """Preview a file (inline display for PDFs, images)."""
+    service = get_drive_service()
+
+    if not service.is_enabled():
+        raise HTTPException(status_code=503, detail="Google Drive integration is not enabled")
+
+    try:
+        content, filename, mime_type = await service.download_file(file_id)
+
+        # Use RFC 5987 encoding for filenames with Unicode characters
+        encoded_filename = quote(filename)
+        return StreamingResponse(
+            io.BytesIO(content),
+            media_type=mime_type,
+            headers={
+                "Content-Disposition": f"inline; filename*=UTF-8''{encoded_filename}",
+                "Content-Length": str(len(content))
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error previewing file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

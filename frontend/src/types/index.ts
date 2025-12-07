@@ -167,3 +167,107 @@ export interface MetricValue {
   timestamp: string;
   value: number;
 }
+
+// Service Checks types
+export type ServiceCheckType = 'http' | 'http_proxy' | 'dns' | 'file';
+export type ServiceCheckStatus = 'passing' | 'failing' | 'unknown';
+
+export interface ServiceCheck {
+  id: number;
+  name: string;
+  description: string | null;
+  check_type: ServiceCheckType;
+  target: string;
+  is_enabled: boolean;
+  expected_status_code: number | null;
+  expected_content: string | null;
+  proxy_address: string | null;
+  dns_server: string | null;
+  expected_ip: string | null;
+  dns_record_type: string | null;
+  timeout_seconds: number;
+  interval_seconds: number;
+  failure_threshold: number;
+  alert_interval_hours: number;
+  assigned_agent: string | null;
+  current_status: ServiceCheckStatus;
+  consecutive_failures: number;
+  last_check_time: string | null;
+  last_success_time: string | null;
+  last_failure_time: string | null;
+  last_latency_ms: number | null;
+  is_alerting: boolean;
+  alert_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceCheckResult {
+  id: number;
+  check_id: number;
+  agent_hostname: string;
+  is_success: boolean;
+  latency_ms: number | null;
+  status_code: number | null;
+  response_body: string | null;
+  error_message: string | null;
+  check_time: string;
+}
+
+export interface DailyUptime {
+  date: string;
+  total: number;
+  success: number;
+  failure: number;
+  uptime_pct: number | null;
+}
+
+export interface UptimeStats {
+  total_checks: number;
+  successful_checks: number;
+  failed_checks: number;
+  uptime_pct: number | null;
+  period_hours: number;
+}
+
+export interface ServiceCheckSummary {
+  total: number;
+  passing: number;
+  failing: number;
+  unknown: number;
+}
+
+export interface ServiceCheckCreate {
+  name: string;
+  description?: string;
+  check_type: ServiceCheckType;
+  target: string;
+  expected_status_code?: number;
+  expected_content?: string;
+  proxy_address?: string;
+  dns_server?: string;
+  expected_ip?: string;
+  dns_record_type?: string;
+  timeout_seconds?: number;
+  interval_seconds?: number;
+  failure_threshold?: number;
+  alert_interval_hours?: number;
+  assigned_agent?: string;
+}
+
+export interface ServiceCheckUpdate extends Partial<ServiceCheckCreate> {
+  is_enabled?: boolean;
+}
+
+export interface AvailableAgent {
+  hostname: string;
+  status: string;
+  description?: string;
+  last_seen?: string | null;
+}
+
+export interface CheckTypeInfo {
+  id: ServiceCheckType;
+  name: string;
+  description: string;
+}

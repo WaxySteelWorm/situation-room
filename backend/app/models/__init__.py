@@ -7,6 +7,13 @@ from .document import Document
 from .column import Column
 from .user import User
 from .monitoring import Agent, ThreatEvent, CountryAggregate, HealthCheck, AgentStatus
+from .service_check import (
+    ServiceCheck,
+    ServiceCheckResult,
+    ServiceCheckAlert,
+    ServiceCheckType,
+    ServiceCheckStatus,
+)
 
 __all__ = [
     "Base",
@@ -25,4 +32,9 @@ __all__ = [
     "CountryAggregate",
     "HealthCheck",
     "AgentStatus",
+    "ServiceCheck",
+    "ServiceCheckResult",
+    "ServiceCheckAlert",
+    "ServiceCheckType",
+    "ServiceCheckStatus",
 ]

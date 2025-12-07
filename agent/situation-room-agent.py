@@ -27,6 +27,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 try:
     import websockets
@@ -34,6 +35,19 @@ try:
 except ImportError:
     print("Missing required packages. Install with: pip install websockets pyyaml")
     sys.exit(1)
+
+# Optional dependencies for service checks
+try:
+    import httpx
+    HTTPX_AVAILABLE = True
+except ImportError:
+    HTTPX_AVAILABLE = False
+
+try:
+    import dns.resolver
+    DNS_AVAILABLE = True
+except ImportError:
+    DNS_AVAILABLE = False
 
 
 # Configure logging
@@ -320,15 +334,308 @@ class HealthChecker:
         return result
 
 
+class ServiceCheckExecutor:
+    """Executes service checks sent from the server."""
+
+    @staticmethod
+    async def execute_http_check(check_config: dict) -> dict:
+        """Execute an HTTP/HTTPS check."""
+        if not HTTPX_AVAILABLE:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'error_message': 'httpx library not available. Install with: pip install httpx'
+            }
+
+        target = check_config.get('target', '')
+        timeout = check_config.get('timeout_seconds', 30)
+        expected_status = check_config.get('expected_status_code')
+        expected_content = check_config.get('expected_content')
+
+        start = time.time()
+        try:
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                follow_redirects=True,
+                verify=True
+            ) as client:
+                response = await client.get(target)
+                latency = (time.time() - start) * 1000
+
+                # Check status code
+                is_success = True
+                error_message = None
+
+                if expected_status and response.status_code != expected_status:
+                    is_success = False
+                    error_message = f"Expected status {expected_status}, got {response.status_code}"
+                elif not expected_status and response.status_code >= 400:
+                    is_success = False
+                    error_message = f"HTTP error: {response.status_code}"
+
+                # Check content
+                if is_success and expected_content:
+                    body = response.text
+                    if expected_content not in body:
+                        is_success = False
+                        error_message = f"Expected content '{expected_content[:50]}...' not found"
+
+                return {
+                    'check_id': check_config.get('id'),
+                    'is_success': is_success,
+                    'latency_ms': latency,
+                    'status_code': response.status_code,
+                    'response_body': response.text[:500] if response.text else None,
+                    'error_message': error_message,
+                }
+
+        except httpx.TimeoutException:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'latency_ms': (time.time() - start) * 1000,
+                'error_message': f'Timeout after {timeout}s',
+            }
+        except Exception as e:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'latency_ms': (time.time() - start) * 1000,
+                'error_message': str(e),
+            }
+
+    @staticmethod
+    async def execute_http_proxy_check(check_config: dict) -> dict:
+        """Execute an HTTP check through a proxy."""
+        if not HTTPX_AVAILABLE:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'error_message': 'httpx library not available'
+            }
+
+        target = check_config.get('target', '')
+        proxy_address = check_config.get('proxy_address', '')
+        timeout = check_config.get('timeout_seconds', 30)
+        expected_content = check_config.get('expected_content')
+
+        if not proxy_address:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'error_message': 'No proxy address configured',
+            }
+
+        start = time.time()
+        try:
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                proxy=proxy_address,
+                verify=False  # Often needed for proxy connections
+            ) as client:
+                response = await client.get(target)
+                latency = (time.time() - start) * 1000
+
+                is_success = True
+                error_message = None
+
+                if response.status_code >= 400:
+                    is_success = False
+                    error_message = f"HTTP error: {response.status_code}"
+
+                if is_success and expected_content:
+                    body = response.text
+                    if expected_content not in body:
+                        is_success = False
+                        error_message = f"Expected content not found"
+
+                return {
+                    'check_id': check_config.get('id'),
+                    'is_success': is_success,
+                    'latency_ms': latency,
+                    'status_code': response.status_code,
+                    'response_body': response.text[:500] if response.text else None,
+                    'error_message': error_message,
+                }
+
+        except httpx.TimeoutException:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'latency_ms': (time.time() - start) * 1000,
+                'error_message': f'Timeout after {timeout}s',
+            }
+        except Exception as e:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'latency_ms': (time.time() - start) * 1000,
+                'error_message': str(e),
+            }
+
+    @staticmethod
+    async def execute_dns_check(check_config: dict) -> dict:
+        """Execute a DNS resolution check."""
+        if not DNS_AVAILABLE:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'error_message': 'dnspython library not available. Install with: pip install dnspython'
+            }
+
+        target = check_config.get('target', '')  # Hostname to resolve
+        dns_server = check_config.get('dns_server')
+        expected_ip = check_config.get('expected_ip')
+        record_type = check_config.get('dns_record_type', 'A')
+        timeout = check_config.get('timeout_seconds', 10)
+
+        start = time.time()
+        try:
+            resolver = dns.resolver.Resolver()
+            resolver.timeout = timeout
+            resolver.lifetime = timeout
+
+            if dns_server:
+                resolver.nameservers = [dns_server]
+
+            # Resolve the hostname
+            answers = resolver.resolve(target, record_type)
+            latency = (time.time() - start) * 1000
+
+            resolved_ips = [str(rdata) for rdata in answers]
+
+            is_success = True
+            error_message = None
+
+            if expected_ip and expected_ip not in resolved_ips:
+                is_success = False
+                error_message = f"Expected IP {expected_ip} not in results: {resolved_ips}"
+
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': is_success,
+                'latency_ms': latency,
+                'response_body': json.dumps(resolved_ips),
+                'error_message': error_message,
+            }
+
+        except dns.resolver.NXDOMAIN:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'latency_ms': (time.time() - start) * 1000,
+                'error_message': 'Domain does not exist (NXDOMAIN)',
+            }
+        except dns.resolver.NoAnswer:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'latency_ms': (time.time() - start) * 1000,
+                'error_message': f'No {record_type} record found',
+            }
+        except dns.resolver.Timeout:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'latency_ms': (time.time() - start) * 1000,
+                'error_message': 'DNS resolution timeout',
+            }
+        except Exception as e:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'latency_ms': (time.time() - start) * 1000,
+                'error_message': str(e),
+            }
+
+    @staticmethod
+    async def execute_file_check(check_config: dict) -> dict:
+        """Execute a file availability check (HTTP download check)."""
+        if not HTTPX_AVAILABLE:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'error_message': 'httpx library not available'
+            }
+
+        target = check_config.get('target', '')
+        timeout = check_config.get('timeout_seconds', 60)
+
+        start = time.time()
+        try:
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                follow_redirects=True
+            ) as client:
+                # Use HEAD request first to check availability without downloading
+                response = await client.head(target)
+                latency = (time.time() - start) * 1000
+
+                is_success = (
+                    response.status_code == 200 and
+                    int(response.headers.get('content-length', 0)) > 0
+                )
+
+                error_message = None
+                if response.status_code != 200:
+                    error_message = f"HTTP error: {response.status_code}"
+                elif int(response.headers.get('content-length', 0)) == 0:
+                    error_message = "File is empty (content-length: 0)"
+
+                return {
+                    'check_id': check_config.get('id'),
+                    'is_success': is_success,
+                    'latency_ms': latency,
+                    'status_code': response.status_code,
+                    'response_body': f"Content-Length: {response.headers.get('content-length', 'unknown')}",
+                    'error_message': error_message,
+                }
+
+        except httpx.TimeoutException:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'latency_ms': (time.time() - start) * 1000,
+                'error_message': f'Timeout after {timeout}s',
+            }
+        except Exception as e:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'latency_ms': (time.time() - start) * 1000,
+                'error_message': str(e),
+            }
+
+    async def execute_check(self, check_config: dict) -> dict:
+        """Execute a service check based on its type."""
+        check_type = check_config.get('type', 'http')
+
+        if check_type == 'http':
+            return await self.execute_http_check(check_config)
+        elif check_type == 'http_proxy':
+            return await self.execute_http_proxy_check(check_config)
+        elif check_type == 'dns':
+            return await self.execute_dns_check(check_config)
+        elif check_type == 'file':
+            return await self.execute_file_check(check_config)
+        else:
+            return {
+                'check_id': check_config.get('id'),
+                'is_success': False,
+                'error_message': f'Unknown check type: {check_type}',
+            }
+
+
 class Agent:
     """Main monitoring agent."""
 
-    VERSION = '1.0.0'
+    VERSION = '1.0.1'
 
     def __init__(self, config: Config):
         self.config = config
         self.ufw_reader = UFWLogReader(config.ufw_log_path) if config.ufw_enabled else None
         self.health_checker = HealthChecker()
+        self.service_check_executor = ServiceCheckExecutor()
         self.running = True
         self.websocket = None
         self._reconnect_delay = 5
@@ -418,6 +725,29 @@ class Agent:
 
                     if data.get('type') == 'ping':
                         await websocket.send(json.dumps({'type': 'pong'}))
+
+                    elif data.get('type') == 'service_check':
+                        # Execute service checks and report results
+                        checks = data.get('checks', [])
+                        if checks:
+                            results = []
+                            for check_config in checks:
+                                try:
+                                    result = await self.service_check_executor.execute_check(check_config)
+                                    results.append(result)
+                                except Exception as e:
+                                    results.append({
+                                        'check_id': check_config.get('id'),
+                                        'is_success': False,
+                                        'error_message': str(e),
+                                    })
+
+                            if results:
+                                await websocket.send(json.dumps({
+                                    'type': 'service_check_result',
+                                    'results': results
+                                }))
+                                logger.debug(f"Sent {len(results)} service check results")
 
                 except asyncio.TimeoutError:
                     pass  # Normal timeout, continue loop

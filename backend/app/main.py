@@ -13,12 +13,72 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import load_config
 from .models.database import init_db, get_db
 from .utils.logging import setup_logging
-from .routers import auth_router, tasks_router, credentials_router, dashboard_router, documents_router, columns_router, uploads_router, users_router, monitoring_router
+from .routers import auth_router, tasks_router, credentials_router, dashboard_router, documents_router, columns_router, uploads_router, users_router, monitoring_router, service_checks_router
 
 logger = logging.getLogger(__name__)
 
-# Background task for monitoring data retention
+# Background tasks
 _retention_task: asyncio.Task | None = None
+_service_check_task: asyncio.Task | None = None
+
+
+async def service_check_scheduler_task():
+    """Background task to dispatch service checks to agents."""
+    from .services.service_check import ServiceCheckService
+    from .services.websocket_manager import get_websocket_manager
+
+    logger.info("Service check scheduler task started")
+
+    # Track round-robin index for "any" agent checks
+    round_robin_index = 0
+
+    while True:
+        try:
+            # Run every 30 seconds to check for due checks
+            await asyncio.sleep(30)
+
+            config = load_config()
+            if not config.monitoring.enabled:
+                continue
+
+            ws_manager = get_websocket_manager()
+            connected_agents = ws_manager.get_connected_agents()
+
+            if not connected_agents:
+                continue
+
+            # Get database session
+            async for db in get_db():
+                service = ServiceCheckService(db)
+                assignments = await service.get_check_assignments()
+
+                for agent_key, checks in assignments.items():
+                    if not checks:
+                        continue
+
+                    if agent_key == 'any':
+                        # Round-robin distribution
+                        for check in checks:
+                            if connected_agents:
+                                agent = connected_agents[round_robin_index % len(connected_agents)]
+                                round_robin_index += 1
+                                await ws_manager.send_to_agent(
+                                    agent['hostname'],
+                                    {'type': 'service_check', 'checks': [check]}
+                                )
+                    else:
+                        # Specific agent assignment
+                        if ws_manager.is_agent_connected(agent_key):
+                            await ws_manager.send_to_agent(
+                                agent_key,
+                                {'type': 'service_check', 'checks': checks}
+                            )
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Service check scheduler error: {e}")
+            await asyncio.sleep(10)
 
 
 async def monitoring_retention_task():
@@ -60,7 +120,7 @@ async def monitoring_retention_task():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
-    global _retention_task
+    global _retention_task, _service_check_task
 
     # Startup
     config = load_config()
@@ -80,6 +140,7 @@ async def lifespan(app: FastAPI):
     if config.monitoring.enabled:
         logger.info("Monitoring module enabled")
         _retention_task = asyncio.create_task(monitoring_retention_task())
+        _service_check_task = asyncio.create_task(service_check_scheduler_task())
 
     yield
 
@@ -87,12 +148,13 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down Situation Room...")
 
     # Cancel background tasks
-    if _retention_task:
-        _retention_task.cancel()
-        try:
-            await _retention_task
-        except asyncio.CancelledError:
-            pass
+    for task in [_retention_task, _service_check_task]:
+        if task:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(
@@ -121,6 +183,7 @@ app.include_router(columns_router)
 app.include_router(uploads_router)
 app.include_router(users_router)
 app.include_router(monitoring_router)
+app.include_router(service_checks_router)
 
 
 # Health check endpoint

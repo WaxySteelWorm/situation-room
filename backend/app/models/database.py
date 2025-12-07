@@ -47,7 +47,7 @@ async def init_db() -> None:
     )
 
     # Import all models to register them
-    from . import task, credential, document, column, user  # noqa: F401
+    from . import task, credential, document, column, user, monitoring, service_check  # noqa: F401
 
     # Create tables
     async with _engine.begin() as conn:

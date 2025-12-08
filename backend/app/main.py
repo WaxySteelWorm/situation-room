@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import load_config
 from .models.database import init_db, get_db
 from .utils.logging import setup_logging
-from .routers import auth_router, tasks_router, credentials_router, dashboard_router, documents_router, columns_router, uploads_router, users_router, monitoring_router, google_drive_router, service_checks_router
+from .routers import auth_router, tasks_router, credentials_router, dashboard_router, documents_router, columns_router, uploads_router, users_router, monitoring_router, google_drive_router, service_checks_router, network_router
 from .routers.alerts import router as alerts_router
 from .services.alert_checker import get_alert_checker
 
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # Background tasks
 _retention_task: asyncio.Task | None = None
 _service_check_task: asyncio.Task | None = None
+_network_poll_task: asyncio.Task | None = None
 _alert_checker = None
 
 
@@ -89,6 +90,74 @@ async def service_check_scheduler_task():
             await asyncio.sleep(10)
 
 
+async def network_polling_task():
+    """Background task for network monitoring (BGP and traffic)."""
+    from .services.cloudflare_radar import CloudflareRadarService
+    from .services.observium import ObserviumService
+    from .services.notification import NotificationService
+
+    logger.info("Network polling task started")
+
+    while True:
+        try:
+            config = load_config()
+            if not config.network.enabled:
+                await asyncio.sleep(60)
+                continue
+
+            # Poll at the configured interval (default 15 minutes)
+            interval_seconds = config.network.cloudflare_radar.check_interval_minutes * 60
+
+            # Get a database session
+            async for db in get_db():
+                # Poll Cloudflare Radar for BGP updates
+                if config.network.cloudflare_radar.enabled:
+                    try:
+                        radar_service = CloudflareRadarService(db)
+                        results = await radar_service.poll_and_update()
+                        if results.get("events_recorded", 0) > 0:
+                            logger.info(f"Recorded {results['events_recorded']} BGP events")
+
+                        # Send alerts for new events
+                        unalerted = await radar_service.get_unalerted_events()
+                        if unalerted:
+                            notification_service = NotificationService()
+                            for event in unalerted:
+                                # Send Discord alert
+                                await notification_service._send_discord(
+                                    f"**BGP Alert**: {event.event_type}\n"
+                                    f"ASN: {event.asn}\n"
+                                    f"Prefix: {event.prefix or 'N/A'}\n"
+                                    f"Severity: {event.severity}\n"
+                                    f"Description: {event.description or 'No description'}",
+                                    notification_type=None  # Will use default color
+                                )
+                                await radar_service.mark_event_alerted(event.id)
+                            logger.info(f"Sent {len(unalerted)} BGP alerts")
+                    except Exception as e:
+                        logger.error(f"BGP polling error: {e}")
+
+                # Poll Observium for traffic updates
+                if config.network.observium.enabled:
+                    try:
+                        observium_service = ObserviumService(db)
+                        results = await observium_service.poll_and_update()
+                        if results.get("samples_recorded", 0) > 0:
+                            logger.debug(f"Recorded {results['samples_recorded']} traffic samples")
+                    except Exception as e:
+                        logger.error(f"Observium polling error: {e}")
+
+                break  # Exit the async for loop after processing
+
+            await asyncio.sleep(interval_seconds)
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Network polling task error: {e}")
+            await asyncio.sleep(60)  # Wait a bit before retrying
+
+
 async def monitoring_retention_task():
     """Background task for data retention and cleanup."""
     from .services.monitoring import MonitoringService
@@ -128,7 +197,7 @@ async def monitoring_retention_task():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
-    global _retention_task, _service_check_task, _alert_checker
+    global _retention_task, _service_check_task, _network_poll_task, _alert_checker
 
     # Startup
     config = load_config()
@@ -155,6 +224,13 @@ async def lifespan(app: FastAPI):
     await _alert_checker.start()
     logger.info("Alert checker started")
 
+    # Start network monitoring background task if enabled
+    if config.network.enabled:
+        logger.info("Network monitoring module enabled")
+        logger.info(f"  - Cloudflare Radar: {'enabled' if config.network.cloudflare_radar.enabled else 'disabled'} (ASN: {config.network.cloudflare_radar.asn})")
+        logger.info(f"  - Observium: {'enabled' if config.network.observium.enabled else 'disabled'} (Interfaces: {config.network.observium.interfaces})")
+        _network_poll_task = asyncio.create_task(network_polling_task())
+
     yield
 
     # Shutdown
@@ -172,6 +248,13 @@ async def lifespan(app: FastAPI):
                 await task
             except asyncio.CancelledError:
                 pass
+
+    if _network_poll_task:
+        _network_poll_task.cancel()
+        try:
+            await _network_poll_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(
@@ -203,6 +286,7 @@ app.include_router(monitoring_router)
 app.include_router(alerts_router)
 app.include_router(google_drive_router)
 app.include_router(service_checks_router)
+app.include_router(network_router)
 
 
 # Health check endpoint

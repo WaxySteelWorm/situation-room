@@ -11,6 +11,7 @@ import {
   Cpu,
   Settings,
   Activity,
+  Network,
 } from 'lucide-react';
 
 export default function Layout() {
@@ -30,6 +31,7 @@ export default function Layout() {
     { to: '/drive', icon: HardDrive, label: 'Files' },
     { to: '/monitoring', icon: Server, label: 'Monitoring' },
     { to: '/service-checks', icon: Activity, label: 'Service Checks' },
+    { to: '/network', icon: Network, label: 'Network' },
     { to: '/settings', icon: Settings, label: 'Settings' },
     // Placeholder for v2
     { to: '#', icon: Cpu, label: 'Automation', disabled: true },

@@ -11,6 +11,7 @@ from .users import router as users_router
 from .monitoring import router as monitoring_router
 from .google_drive import router as google_drive_router
 from .service_checks import router as service_checks_router
+from .network import router as network_router
 
 __all__ = [
     "auth_router",
@@ -24,4 +25,5 @@ __all__ = [
     "monitoring_router",
     "google_drive_router",
     "service_checks_router",
+    "network_router",
 ]

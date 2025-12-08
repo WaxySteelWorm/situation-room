@@ -366,7 +366,17 @@ import type {
   MetricValue,
   AgentVersion,
   AgentUpdateHistory,
-  AgentRolloutStatus
+  AgentRolloutStatus,
+  NetworkStatus,
+  BGPEvent,
+  BGPPrefixStatus,
+  BGPSummary,
+  TrafficSample,
+  DailyTrafficSummary,
+  InterfaceStats,
+  TrafficSummary,
+  ObserviumAlert,
+  TrafficGraphData
 } from '../types';
 
 export const monitoringApi = {
@@ -770,6 +780,74 @@ export const serviceChecksApi = {
 
   getHistory: (id: number, days = 90) =>
     request<DailyUptime[]>(`/service-checks/${id}/history?days=${days}`),
+};
+
+// Network Monitoring API
+export const networkApi = {
+  // Status
+  getStatus: () =>
+    request<NetworkStatus>('/network/status'),
+
+  // BGP
+  getBGPSummary: () =>
+    request<BGPSummary>('/network/bgp/summary'),
+
+  getBGPEvents: (hours = 24, limit = 100) =>
+    request<BGPEvent[]>(`/network/bgp/events?hours=${hours}&limit=${limit}`),
+
+  getBGPPrefixes: () =>
+    request<BGPPrefixStatus[]>('/network/bgp/prefixes'),
+
+  getBGPRoutes: () =>
+    request<Record<string, unknown>>('/network/bgp/routes'),
+
+  getBGPTimeseries: (hours = 24) =>
+    request<Record<string, unknown>>(`/network/bgp/timeseries?hours=${hours}`),
+
+  getASOverview: () =>
+    request<Record<string, unknown>>('/network/bgp/as-overview'),
+
+  pollBGP: () =>
+    request<Record<string, unknown>>('/network/bgp/poll', { method: 'POST' }),
+
+  // Traffic
+  getTrafficSummary: () =>
+    request<TrafficSummary>('/network/traffic/summary'),
+
+  getInterfaceStats: () =>
+    request<InterfaceStats[]>('/network/traffic/interfaces'),
+
+  getTrafficSamples: (interfaceName: string, minutes = 60) =>
+    request<TrafficSample[]>(`/network/traffic/samples/${encodeURIComponent(interfaceName)}?minutes=${minutes}`),
+
+  getTrafficGraphData: (interfaceName: string, hours = 24) =>
+    request<{ interface_name: string; data: TrafficGraphData[] }>(`/network/traffic/graph/${encodeURIComponent(interfaceName)}?hours=${hours}`),
+
+  getDailyTraffic: (interfaceName: string, days = 30) =>
+    request<DailyTrafficSummary[]>(`/network/traffic/daily/${encodeURIComponent(interfaceName)}?days=${days}`),
+
+  pollTraffic: () =>
+    request<Record<string, unknown>>('/network/traffic/poll', { method: 'POST' }),
+
+  // Alerts
+  getAlerts: (hours = 24, status?: string) =>
+    request<ObserviumAlert[]>(
+      status
+        ? `/network/alerts?hours=${hours}&status=${status}`
+        : `/network/alerts?hours=${hours}`
+    ),
+
+  // Observium direct
+  getObserviumDevices: () =>
+    request<Record<string, unknown>>('/network/observium/devices'),
+
+  getObserviumPorts: (deviceId?: number) =>
+    request<Record<string, unknown>>(
+      deviceId ? `/network/observium/ports?device_id=${deviceId}` : '/network/observium/ports'
+    ),
+
+  getObserviumAlerts: (status = 'all') =>
+    request<Record<string, unknown>>(`/network/observium/alerts?status=${status}`),
 };
 
 export { ApiError };

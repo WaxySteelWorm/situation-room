@@ -168,7 +168,8 @@ EOF
 log_info "Starting service..."
 systemctl daemon-reload
 systemctl enable situation-room-agent
-systemctl start situation-room-agent
+# Use restart to ensure the new version runs (handles both fresh install and updates)
+systemctl restart situation-room-agent
 
 # Check status
 sleep 2

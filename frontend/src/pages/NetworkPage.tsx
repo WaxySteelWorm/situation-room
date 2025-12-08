@@ -34,7 +34,7 @@ export default function NetworkPage() {
   const [trafficSummary, setTrafficSummary] = useState<TrafficSummary | null>(null);
   const [dailyTraffic, setDailyTraffic] = useState<DailyTrafficSummary[]>([]);
   const [alerts, setAlerts] = useState<ObserviumAlert[]>([]);
-  const [trafficGraphData, setTrafficGraphData] = useState<TrafficGraphData[]>([]);
+  const [_trafficGraphData, setTrafficGraphData] = useState<TrafficGraphData[]>([]);
   const [selectedInterface, setSelectedInterface] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState(24); // hours
   const [isLoading, setIsLoading] = useState(true);

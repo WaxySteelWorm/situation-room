@@ -341,27 +341,24 @@ class ServiceCheckService:
         """Get checks that are due for execution."""
         now = datetime.utcnow()
 
+        # Get all enabled checks - filter in Python since SQLite datetime arithmetic is unreliable
         result = await self.db.execute(
-            select(ServiceCheck)
-            .where(ServiceCheck.is_enabled == True)
-            .where(
-                (ServiceCheck.last_check_time == None) |
-                (
-                    ServiceCheck.last_check_time <
-                    now - func.cast(ServiceCheck.interval_seconds, Integer) * 1
-                )
-            )
+            select(ServiceCheck).where(ServiceCheck.is_enabled == True)
         )
 
-        # Filter by interval (SQLite doesn't support interval arithmetic well)
+        # Filter by interval in Python
         checks = []
         for check in result.scalars().all():
             if check.last_check_time is None:
+                logger.debug(f"Check '{check.name}' never executed, marking as due")
                 checks.append(check)
             else:
                 time_since_last = (now - check.last_check_time).total_seconds()
                 if time_since_last >= check.interval_seconds:
+                    logger.debug(f"Check '{check.name}' due: {time_since_last:.0f}s elapsed >= {check.interval_seconds}s interval")
                     checks.append(check)
+                else:
+                    logger.debug(f"Check '{check.name}' not due: {time_since_last:.0f}s elapsed < {check.interval_seconds}s interval")
 
         return checks
 

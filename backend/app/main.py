@@ -43,45 +43,54 @@ async def service_check_scheduler_task():
 
             config = load_config()
             if not config.monitoring.enabled:
+                logger.debug("Monitoring disabled, skipping service checks")
                 continue
 
             ws_manager = get_websocket_manager()
             connected_agents = ws_manager.get_connected_agents()
 
             if not connected_agents:
+                logger.debug("No connected agents, skipping service checks")
                 continue
+
+            logger.debug(f"Service check scheduler running, {len(connected_agents)} agents connected")
 
             # Get database session
             async for db in get_db():
                 service = ServiceCheckService(db)
                 assignments = await service.get_check_assignments()
 
-                if assignments:
+                if not assignments:
+                    logger.debug("No service checks due for execution")
+                else:
                     logger.info(f"Service check assignments: {list(assignments.keys())}")
 
-                for agent_key, checks in assignments.items():
-                    if not checks:
-                        continue
+                    for agent_key, checks in assignments.items():
+                        if not checks:
+                            continue
 
-                    if agent_key == 'any':
-                        # Round-robin distribution
-                        for check in checks:
-                            if connected_agents:
-                                agent = connected_agents[round_robin_index % len(connected_agents)]
-                                round_robin_index += 1
-                                logger.info(f"Dispatching check '{check['name']}' to agent {agent['hostname']}")
+                        if agent_key == 'any':
+                            # Round-robin distribution
+                            for check in checks:
+                                if connected_agents:
+                                    agent = connected_agents[round_robin_index % len(connected_agents)]
+                                    round_robin_index += 1
+                                    logger.info(f"Dispatching check '{check['name']}' to agent {agent['hostname']}")
+                                    await ws_manager.send_to_agent(
+                                        agent['hostname'],
+                                        {'type': 'service_check', 'checks': [check]}
+                                    )
+                        else:
+                            # Specific agent assignment
+                            if ws_manager.is_agent_connected(agent_key):
+                                logger.info(f"Dispatching {len(checks)} checks to agent {agent_key}")
                                 await ws_manager.send_to_agent(
-                                    agent['hostname'],
-                                    {'type': 'service_check', 'checks': [check]}
+                                    agent_key,
+                                    {'type': 'service_check', 'checks': checks}
                                 )
-                    else:
-                        # Specific agent assignment
-                        if ws_manager.is_agent_connected(agent_key):
-                            logger.info(f"Dispatching {len(checks)} checks to agent {agent_key}")
-                            await ws_manager.send_to_agent(
-                                agent_key,
-                                {'type': 'service_check', 'checks': checks}
-                            )
+                            else:
+                                logger.warning(f"Agent {agent_key} not connected, skipping checks")
+                break  # Only need one db session
 
         except asyncio.CancelledError:
             break
@@ -360,7 +369,7 @@ async def get_agent_version():
                 break
 
     # Base dependencies (can be extended via database)
-    dependencies = ["websockets", "pyyaml"]
+    dependencies = ["websockets", "pyyaml", "httpx", "dnspython"]
 
     # Try to get additional info from database if available
     try:

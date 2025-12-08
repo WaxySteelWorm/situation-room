@@ -17,7 +17,7 @@ Usage:
     python situation-room-agent.py --config /path/to/agent-config.yml
 """
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 import argparse
 import asyncio

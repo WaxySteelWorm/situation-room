@@ -19,6 +19,8 @@ import {
   ArrowUpCircle,
   CheckCircle,
   XCircle,
+  Plus,
+  X,
 } from 'lucide-react';
 
 export default function MonitoringPage() {
@@ -34,6 +36,15 @@ export default function MonitoringPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'threats' | 'hosts' | 'agents' | 'versions'>('threats');
   const [error, setError] = useState<string | null>(null);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [publishForm, setPublishForm] = useState({
+    version: '',
+    sha256: '',
+    dependencies: 'websockets,pyyaml,httpx,dnspython',
+    release_notes: '',
+    is_current: true,
+  });
+  const [isPublishing, setIsPublishing] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -81,6 +92,52 @@ export default function MonitoringPage() {
       case 'stale': return <Radio size={14} className="text-amber-400 animate-pulse" />;
       case 'offline': return <WifiOff size={14} className="text-red-400" />;
       default: return <Radio size={14} className="text-gray-400" />;
+    }
+  };
+
+  const fetchCurrentVersionInfo = async () => {
+    try {
+      const response = await fetch('/agent/version');
+      const data = await response.json();
+      setPublishForm(prev => ({
+        ...prev,
+        version: data.version || '',
+        sha256: data.sha256 || '',
+        dependencies: (data.dependencies || []).join(','),
+      }));
+    } catch (err) {
+      console.error('Failed to fetch version info:', err);
+    }
+  };
+
+  const handlePublishVersion = async () => {
+    if (!publishForm.version || !publishForm.sha256) {
+      alert('Version and SHA256 are required');
+      return;
+    }
+    setIsPublishing(true);
+    try {
+      await monitoringApi.createVersion({
+        version: publishForm.version,
+        sha256: publishForm.sha256,
+        dependencies: publishForm.dependencies.split(',').map(d => d.trim()).filter(Boolean),
+        release_notes: publishForm.release_notes || undefined,
+        is_current: publishForm.is_current,
+      });
+      setShowPublishModal(false);
+      setPublishForm({
+        version: '',
+        sha256: '',
+        dependencies: 'websockets,pyyaml,httpx,dnspython',
+        release_notes: '',
+        is_current: true,
+      });
+      loadData(); // Refresh to show new version
+    } catch (err) {
+      console.error('Failed to publish version:', err);
+      alert('Failed to publish version. It may already exist.');
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -349,6 +406,21 @@ export default function MonitoringPage() {
 
       {activeTab === 'versions' && (
         <div className="space-y-6">
+          {/* Header with Publish button */}
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-white">Agent Version Management</h2>
+            <button
+              onClick={() => {
+                fetchCurrentVersionInfo();
+                setShowPublishModal(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              <Plus size={18} />
+              Publish Version
+            </button>
+          </div>
+
           {/* Rollout Status */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
@@ -493,6 +565,95 @@ export default function MonitoringPage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Publish Version Modal */}
+      {showPublishModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="bg-gray-900 rounded-xl border border-gray-700 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+              <h3 className="text-lg font-semibold text-white">Publish Agent Version</h3>
+              <button
+                onClick={() => setShowPublishModal(false)}
+                className="p-1 hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-400 mb-4">
+                Register a new agent version in the database. The version info is pre-filled from the currently deployed agent.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Version</label>
+                <input
+                  type="text"
+                  value={publishForm.version}
+                  onChange={(e) => setPublishForm(prev => ({ ...prev, version: e.target.value }))}
+                  placeholder="1.1.1"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">SHA256 Hash</label>
+                <input
+                  type="text"
+                  value={publishForm.sha256}
+                  onChange={(e) => setPublishForm(prev => ({ ...prev, sha256: e.target.value }))}
+                  placeholder="abc123..."
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Dependencies (comma-separated)</label>
+                <input
+                  type="text"
+                  value={publishForm.dependencies}
+                  onChange={(e) => setPublishForm(prev => ({ ...prev, dependencies: e.target.value }))}
+                  placeholder="websockets,pyyaml,httpx,dnspython"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Release Notes (optional)</label>
+                <textarea
+                  value={publishForm.release_notes}
+                  onChange={(e) => setPublishForm(prev => ({ ...prev, release_notes: e.target.value }))}
+                  placeholder="What's new in this version..."
+                  rows={3}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is_current"
+                  checked={publishForm.is_current}
+                  onChange={(e) => setPublishForm(prev => ({ ...prev, is_current: e.target.checked }))}
+                  className="w-4 h-4 rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="is_current" className="text-sm text-gray-300">
+                  Set as current version (agents will auto-update to this)
+                </label>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-700">
+              <button
+                onClick={() => setShowPublishModal(false)}
+                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePublishVersion}
+                disabled={isPublishing || !publishForm.version || !publishForm.sha256}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors"
+              >
+                {isPublishing ? 'Publishing...' : 'Publish Version'}
+              </button>
+            </div>
           </div>
         </div>
       )}

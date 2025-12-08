@@ -16,6 +16,7 @@ services:
       - ./certs:/app/certs
     environment:
       - SITUATION_ROOM_CONFIG=/app/config.yml
+      - CLOUDFLARE_RADAR_API_KEY=I7ib4oWJroCZAxFinAmAVm5uuiKHl79E9asQM4Af
       # Override secrets via environment variables (recommended for production)
       # - SITUATION_ROOM_SESSION_SECRET=your-secure-session-secret
       # - SITUATION_ROOM_ENCRYPTION_SALT=your-secure-32-char-salt

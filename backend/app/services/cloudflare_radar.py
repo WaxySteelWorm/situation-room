@@ -41,11 +41,11 @@ class CloudflareRadarService:
 
         try:
             async with httpx.AsyncClient() as client:
+                # Use AS entity lookup which works reliably
                 response = await client.get(
-                    f"{RADAR_API_BASE}/bgp/top/ases",
+                    f"{RADAR_API_BASE}/entities/asns/{self.asn}",
                     headers=self._get_headers(),
                     timeout=10.0,
-                    params={"limit": 1}
                 )
                 return response.status_code == 200
         except Exception as e:
@@ -402,14 +402,40 @@ class CloudflareRadarService:
             if "error" not in hijacks_data and "result" in hijacks_data:
                 events = hijacks_data.get("result", {}).get("events", [])
                 for hijack in events:
+                    # Skip stale/historical events
+                    if hijack.get("is_stale", False):
+                        continue
+
+                    # Check if event is recent (within last 7 days)
+                    max_ts = hijack.get("max_hijack_ts")
+                    if max_ts:
+                        try:
+                            event_time = datetime.fromisoformat(max_ts.replace("Z", "+00:00"))
+                            if datetime.utcnow() - event_time.replace(tzinfo=None) > timedelta(days=7):
+                                continue  # Skip events older than 7 days
+                        except (ValueError, TypeError):
+                            pass
+
+                    # Get prefix from the prefixes array
+                    prefixes = hijack.get("prefixes", [])
+                    prefix = prefixes[0] if prefixes else None
+
+                    # Build description
+                    hijacker = hijack.get("hijacker_asn")
+                    victims = hijack.get("victim_asns", [])
+                    description = f"BGP hijack: AS{hijacker} announced {prefix}"
+                    if victims:
+                        description += f" (victim: AS{victims[0]})"
+
                     await self.record_bgp_event(
                         event_type=BGPEventType.HIJACK.value,
-                        prefix=hijack.get("prefix"),
-                        description=f"BGP hijack detected: {hijack.get('description', 'No description')}",
+                        prefix=prefix,
+                        peer_asn=hijacker,
+                        description=description,
                         severity="critical",
                         raw_data=hijack,
-                        event_time=datetime.fromisoformat(hijack["detectedTime"].replace("Z", "+00:00"))
-                        if hijack.get("detectedTime") else None,
+                        event_time=datetime.fromisoformat(max_ts.replace("Z", "+00:00"))
+                        if max_ts else None,
                     )
                     results["events_recorded"] += 1
 

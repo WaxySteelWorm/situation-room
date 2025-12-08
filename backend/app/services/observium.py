@@ -372,16 +372,29 @@ class ObserviumService:
                 )
                 last_sample = result.scalar_one_or_none()
 
+                # Helper to safely convert to float
+                def to_float(val, default=0.0):
+                    try:
+                        return float(val) if val is not None else default
+                    except (ValueError, TypeError):
+                        return default
+
+                def to_int(val, default=None):
+                    try:
+                        return int(val) if val is not None else default
+                    except (ValueError, TypeError):
+                        return default
+
                 stats.append({
                     "interface_name": interface_name,
-                    "port_id": port.get("port_id"),
-                    "ifSpeed": port.get("ifSpeed"),
+                    "port_id": to_int(port.get("port_id")),
+                    "ifSpeed": to_int(port.get("ifSpeed")),
                     "ifOperStatus": port.get("ifOperStatus"),
                     "ifAdminStatus": port.get("ifAdminStatus"),
-                    "ifInOctets_rate": port.get("ifInOctets_rate", 0),
-                    "ifOutOctets_rate": port.get("ifOutOctets_rate", 0),
-                    "ifInOctets_perc": port.get("ifInOctets_perc", 0),
-                    "ifOutOctets_perc": port.get("ifOutOctets_perc", 0),
+                    "ifInOctets_rate": to_float(port.get("ifInOctets_rate")),
+                    "ifOutOctets_rate": to_float(port.get("ifOutOctets_rate")),
+                    "ifInOctets_perc": to_float(port.get("ifInOctets_perc")),
+                    "ifOutOctets_perc": to_float(port.get("ifOutOctets_perc")),
                     "last_sample_time": last_sample.sample_time.isoformat() if last_sample else None,
                     "device_hostname": port.get("hostname"),
                 })
